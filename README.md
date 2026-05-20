@@ -254,12 +254,22 @@ gj-orbitcrm
 商机管理：
 
 - 新增商机
+- 商机列表
+- 商机详情
+- 编辑商机信息
+- 分配商机负责人
 - 销售管道
 - 销售阶段
 - 商机看板
 - 阶段移动
 - 预计成交金额
 - 预计成交日期
+- 赢单
+- 输单
+- 重开商机
+- 商机软删除
+- 商机回收站
+- 恢复已删除商机
 - 赢率字段
 
 销售管道：
@@ -482,9 +492,19 @@ DELETE /api/crm/customers/{id}/tags/{tagId}  移除客户标签
 GET    /api/crm/follow-records               跟进记录列表
 POST   /api/crm/follow-records               创建跟进记录
 
+GET    /api/crm/deals                        商机列表
+GET    /api/crm/deals/deleted                商机回收站
+GET    /api/crm/deals/{id}                   商机详情
 POST   /api/crm/deals                        创建商机
+PATCH  /api/crm/deals/{id}                   编辑商机
 GET    /api/crm/deals/board                  商机看板
 PATCH  /api/crm/deals/{id}/stage             移动商机阶段
+PATCH  /api/crm/deals/{id}/owner             分配商机负责人
+PATCH  /api/crm/deals/{id}/win               标记赢单
+PATCH  /api/crm/deals/{id}/lose              标记输单
+PATCH  /api/crm/deals/{id}/reopen            重开商机
+DELETE /api/crm/deals/{id}                   删除商机
+PATCH  /api/crm/deals/{id}/restore           恢复商机
 GET    /api/crm/pipelines                    销售管道列表
 POST   /api/crm/pipelines                    创建销售管道
 PATCH  /api/crm/pipelines/{id}/default       设置默认销售管道
