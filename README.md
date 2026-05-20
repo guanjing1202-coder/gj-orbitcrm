@@ -230,6 +230,10 @@ gj-orbitcrm
 - 客户类型、联系方式、地址
 - 客户负责人
 - 客户套餐上限检查
+- 客户联系人列表
+- 新增联系人
+- 编辑联系人
+- 设置主联系人
 
 商机管理：
 
@@ -248,6 +252,15 @@ gj-orbitcrm
 - 默认阶段：`Qualified`、`Proposal`、`Negotiation`、`Won`
 - 阶段排序
 - 阶段赢率
+
+跟进记录：
+
+- 支持线索、客户、商机三类对象
+- 查询业务对象跟进记录
+- 新增跟进内容
+- 记录下次跟进时间
+- 自动记录创建人
+- 通过操作日志记录写入动作
 
 ### 6. 任务与提醒
 
@@ -421,6 +434,13 @@ POST   /api/crm/leads/{id}/convert           线索转客户
 
 GET    /api/crm/customers                    客户列表
 POST   /api/crm/customers                    创建客户
+GET    /api/crm/contacts                     联系人列表
+POST   /api/crm/contacts                     创建联系人
+PATCH  /api/crm/contacts/{id}                编辑联系人
+PATCH  /api/crm/contacts/{id}/primary        设置主联系人
+
+GET    /api/crm/follow-records               跟进记录列表
+POST   /api/crm/follow-records               创建跟进记录
 
 POST   /api/crm/deals                        创建商机
 GET    /api/crm/deals/board                  商机看板
