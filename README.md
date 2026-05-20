@@ -216,7 +216,13 @@ gj-orbitcrm
 
 - 线索列表
 - 新增线索
+- 线索详情
+- 编辑线索资料
+- 分配线索负责人
 - 线索状态更新
+- 线索软删除
+- 线索回收站
+- 恢复已删除线索
 - 线索转客户
 - 线索来源记录
 - 负责人字段
@@ -444,9 +450,15 @@ POST   /api/billing/orders                   创建订单
 POST   /api/billing/orders/{id}/payments     支付确认
 
 GET    /api/crm/leads                        线索列表
+GET    /api/crm/leads/deleted                线索回收站
+GET    /api/crm/leads/{id}                   线索详情
 POST   /api/crm/leads                        创建线索
+PATCH  /api/crm/leads/{id}                   编辑线索
 PATCH  /api/crm/leads/{id}/status            更新线索状态
+PATCH  /api/crm/leads/{id}/owner             分配线索负责人
 POST   /api/crm/leads/{id}/convert           线索转客户
+DELETE /api/crm/leads/{id}                   删除线索
+PATCH  /api/crm/leads/{id}/restore           恢复线索
 
 GET    /api/crm/customers                    客户列表
 GET    /api/crm/customers/deleted            客户回收站

@@ -4,6 +4,7 @@ import com.orbitcrm.common.datasource.TenantJdbcTemplateProvider;
 import com.orbitcrm.crm.api.CustomerResponse;
 import com.orbitcrm.crm.api.LeadCreateRequest;
 import com.orbitcrm.crm.api.LeadResponse;
+import com.orbitcrm.crm.api.LeadUpdateRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -83,6 +84,97 @@ class LeadServiceTest {
                 eq(12L),
                 eq("WEBSITE"));
         verify(tenantJdbcTemplate).queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        verifyNoInteractions(refreshedJdbcTemplate);
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void updateLeadReadsUpdatedLeadFromSameTenantJdbcTemplate() throws Exception {
+        TenantJdbcTemplateProvider tenantJdbcTemplateProvider = mock(TenantJdbcTemplateProvider.class);
+        PlanLimitService planLimitService = mock(PlanLimitService.class);
+        JdbcTemplate tenantJdbcTemplate = mock(JdbcTemplate.class);
+        JdbcTemplate refreshedJdbcTemplate = mock(JdbcTemplate.class);
+        LeadService service = new LeadService(tenantJdbcTemplateProvider, planLimitService);
+        LeadUpdateRequest request = new LeadUpdateRequest();
+        request.setLeadName("Grace Hopper Updated");
+        request.setPhone("18800006666");
+        request.setOwnerUserId(18L);
+
+        when(tenantJdbcTemplateProvider.currentTenantJdbcTemplate())
+                .thenReturn(tenantJdbcTemplate, refreshedJdbcTemplate);
+        when(tenantJdbcTemplate.queryForObject(anyString(), any(RowMapper.class), eq(55L)))
+                .thenAnswer(invocation -> {
+                    RowMapper mapper = invocation.getArgument(1);
+                    ResultSet resultSet = mock(ResultSet.class);
+                    when(resultSet.getLong("id")).thenReturn(55L);
+                    when(resultSet.getString("lead_name")).thenReturn("Grace Hopper Updated");
+                    when(resultSet.getString("company_name")).thenReturn("Compiler Labs");
+                    when(resultSet.getString("phone")).thenReturn("18800006666");
+                    when(resultSet.getString("email")).thenReturn("grace@example.com");
+                    when(resultSet.getString("status")).thenReturn("NEW");
+                    when(resultSet.getObject("owner_user_id")).thenReturn(18L);
+                    when(resultSet.getString("source")).thenReturn("WEBSITE");
+                    when(resultSet.getTimestamp("create_time"))
+                            .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 5, 20, 13, 30)));
+                    return mapper.mapRow(resultSet, 0);
+                });
+
+        LeadResponse response = service.updateLead(55L, request);
+
+        assertNotNull(response);
+        assertEquals("Grace Hopper Updated", response.getLeadName());
+        assertEquals("18800006666", response.getPhone());
+        assertEquals(18L, response.getOwnerUserId());
+        verify(tenantJdbcTemplateProvider, times(1)).currentTenantJdbcTemplate();
+        verify(tenantJdbcTemplate).update(
+                eq("UPDATE crm_lead SET lead_name = ?, phone = ?, owner_user_id = ? WHERE id = ? AND status <> 'DELETED'"),
+                eq("Grace Hopper Updated"),
+                eq("18800006666"),
+                eq(18L),
+                eq(55L));
+        verifyNoInteractions(refreshedJdbcTemplate);
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void restoreLeadChecksPlanLimitAndReadsRestoredLeadFromSameTenantJdbcTemplate() throws Exception {
+        TenantJdbcTemplateProvider tenantJdbcTemplateProvider = mock(TenantJdbcTemplateProvider.class);
+        PlanLimitService planLimitService = mock(PlanLimitService.class);
+        JdbcTemplate tenantJdbcTemplate = mock(JdbcTemplate.class);
+        JdbcTemplate refreshedJdbcTemplate = mock(JdbcTemplate.class);
+        LeadService service = new LeadService(tenantJdbcTemplateProvider, planLimitService);
+
+        when(tenantJdbcTemplateProvider.currentTenantJdbcTemplate())
+                .thenReturn(tenantJdbcTemplate, refreshedJdbcTemplate);
+        when(tenantJdbcTemplate.update(
+                "UPDATE crm_lead SET status = 'NEW' WHERE id = ? AND status = 'DELETED'",
+                55L)).thenReturn(1);
+        when(tenantJdbcTemplate.queryForObject(anyString(), any(RowMapper.class), eq(55L)))
+                .thenAnswer(invocation -> {
+                    RowMapper mapper = invocation.getArgument(1);
+                    ResultSet resultSet = mock(ResultSet.class);
+                    when(resultSet.getLong("id")).thenReturn(55L);
+                    when(resultSet.getString("lead_name")).thenReturn("Grace Hopper");
+                    when(resultSet.getString("company_name")).thenReturn("Compiler Labs");
+                    when(resultSet.getString("phone")).thenReturn("18800002222");
+                    when(resultSet.getString("email")).thenReturn("grace@example.com");
+                    when(resultSet.getString("status")).thenReturn("NEW");
+                    when(resultSet.getObject("owner_user_id")).thenReturn(12L);
+                    when(resultSet.getString("source")).thenReturn("WEBSITE");
+                    when(resultSet.getTimestamp("create_time"))
+                            .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 5, 20, 13, 30)));
+                    return mapper.mapRow(resultSet, 0);
+                });
+
+        LeadResponse response = service.restoreLead(55L);
+
+        assertNotNull(response);
+        assertEquals("NEW", response.getStatus());
+        verify(planLimitService).assertLeadLimitAvailable();
+        verify(tenantJdbcTemplateProvider, times(1)).currentTenantJdbcTemplate();
+        verify(tenantJdbcTemplate).update(
+                "UPDATE crm_lead SET status = 'NEW' WHERE id = ? AND status = 'DELETED'",
+                55L);
         verifyNoInteractions(refreshedJdbcTemplate);
     }
 
