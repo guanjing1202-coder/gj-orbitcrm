@@ -283,6 +283,7 @@ VALUES ('crm:lead:manage', 'Manage Leads', 'API'),
        ('crm:deal:manage', 'Manage Deals', 'API'),
        ('crm:follow:manage', 'Manage Follow Records', 'API'),
        ('crm:tag:manage', 'Manage CRM Tags', 'API'),
+       ('crm:pipeline:manage', 'Manage CRM Pipelines', 'API'),
        ('task:manage', 'Manage Tasks', 'API'),
        ('report:dashboard:view', 'View Dashboard Reports', 'API'),
        ('tenant:domain:manage', 'Manage Tenant Domains', 'API'),
@@ -307,7 +308,7 @@ ON DUPLICATE KEY UPDATE role_id = VALUES(role_id);
 INSERT INTO sys_role_permission (role_id, permission_id)
 SELECT r.id, p.id FROM sys_role r JOIN sys_permission p
 WHERE r.role_code = 'sales_manager'
-  AND p.permission_code IN ('crm:lead:manage', 'crm:customer:manage', 'crm:contact:manage', 'crm:deal:manage', 'crm:follow:manage', 'crm:tag:manage', 'task:manage', 'report:dashboard:view', 'file:manage', 'message:notice:view', 'message:notice:manage')
+  AND p.permission_code IN ('crm:lead:manage', 'crm:customer:manage', 'crm:contact:manage', 'crm:deal:manage', 'crm:follow:manage', 'crm:tag:manage', 'crm:pipeline:manage', 'task:manage', 'report:dashboard:view', 'file:manage', 'message:notice:view', 'message:notice:manage')
 ON DUPLICATE KEY UPDATE role_id = VALUES(role_id);
 
 INSERT INTO sys_role_permission (role_id, permission_id)

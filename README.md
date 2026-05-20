@@ -254,6 +254,12 @@ gj-orbitcrm
 
 - 默认销售管道
 - 默认阶段：`Qualified`、`Proposal`、`Negotiation`、`Won`
+- 销售管道列表
+- 新增销售管道
+- 设置默认销售管道
+- 阶段列表
+- 新增阶段
+- 编辑阶段名称、赢率和排序
 - 阶段排序
 - 阶段赢率
 
@@ -455,6 +461,12 @@ POST   /api/crm/follow-records               创建跟进记录
 POST   /api/crm/deals                        创建商机
 GET    /api/crm/deals/board                  商机看板
 PATCH  /api/crm/deals/{id}/stage             移动商机阶段
+GET    /api/crm/pipelines                    销售管道列表
+POST   /api/crm/pipelines                    创建销售管道
+PATCH  /api/crm/pipelines/{id}/default       设置默认销售管道
+GET    /api/crm/pipelines/{id}/stages        阶段列表
+POST   /api/crm/pipelines/{id}/stages        创建阶段
+PATCH  /api/crm/pipelines/stages/{stageId}   编辑阶段
 
 GET    /api/tasks                            任务列表
 POST   /api/tasks                            创建任务
