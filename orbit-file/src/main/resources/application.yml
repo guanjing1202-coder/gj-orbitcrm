@@ -1,0 +1,28 @@
+server:
+  port: 9209
+spring:
+  application:
+    name: orbit-file
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/orbit_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+  servlet:
+    multipart:
+      max-file-size: ${ORBIT_MAX_FILE_SIZE:50MB}
+      max-request-size: ${ORBIT_MAX_REQUEST_SIZE:60MB}
+orbit:
+  jwt:
+    secret: ${JWT_SECRET:orbitcrm-commercial-secret-must-be-32-bytes}
+    ttl-millis: ${JWT_TTL_MILLIS:7200000}
+  file:
+    bucket-prefix: ${ORBIT_FILE_BUCKET_PREFIX:orbitcrm}
+    max-upload-bytes: ${ORBIT_FILE_MAX_UPLOAD_BYTES:52428800}
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}

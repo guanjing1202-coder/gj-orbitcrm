@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.orbitcrm.common.security.config.CommonSecurityAutoConfiguration

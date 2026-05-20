@@ -1,0 +1,26 @@
+server:
+  port: 9203
+spring:
+  application:
+    name: orbit-tenant
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/orbit_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+orbit:
+  tenant:
+    root-domain: ${ORBIT_ROOT_DOMAIN:orbitcrm.com}
+    cname-target: ${ORBIT_CNAME_TARGET:tenant.orbitcrm.com}
+  provisioning:
+    mysql-host: ${MYSQL_HOST:127.0.0.1}
+    mysql-port: ${MYSQL_PORT:3306}
+    mysql-username: ${MYSQL_USER:root}
+    mysql-password: ${MYSQL_PASSWORD:root}
+    trial-days: ${ORBIT_TRIAL_DAYS:14}
+  jwt:
+    secret: ${JWT_SECRET:orbitcrm-commercial-secret-must-be-32-bytes}
+    ttl-millis: ${JWT_TTL_MILLIS:7200000}

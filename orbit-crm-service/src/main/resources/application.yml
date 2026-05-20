@@ -1,0 +1,17 @@
+server:
+  port: 9206
+spring:
+  application:
+    name: orbit-crm-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/orbit_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+orbit:
+  jwt:
+    secret: ${JWT_SECRET:orbitcrm-commercial-secret-must-be-32-bytes}
+    ttl-millis: ${JWT_TTL_MILLIS:7200000}

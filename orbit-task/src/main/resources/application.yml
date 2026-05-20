@@ -1,0 +1,29 @@
+server:
+  port: 9207
+spring:
+  application:
+    name: orbit-task
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/orbit_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+orbit:
+  jwt:
+    secret: ${JWT_SECRET:orbitcrm-commercial-secret-must-be-32-bytes}
+    ttl-millis: ${JWT_TTL_MILLIS:7200000}
+  task:
+    default-reminder-minutes: ${ORBIT_TASK_DEFAULT_REMINDER_MINUTES:30}
+    reminder-cron: ${ORBIT_TASK_REMINDER_CRON:0 */5 * * * ?}
+    reminder-batch-size: ${ORBIT_TASK_REMINDER_BATCH_SIZE:100}
+  message:
+    notice-exchange: ${ORBIT_NOTICE_EXCHANGE:orbit.notice.exchange}
+    notice-routing-key: ${ORBIT_NOTICE_ROUTING_KEY:notice.create}

@@ -1,0 +1,16 @@
+server:
+  port: 9213
+spring:
+  application:
+    name: orbit-admin
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/orbit_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+orbit:
+  admin:
+    api-key: ${ORBIT_ADMIN_API_KEY:change-me-admin-key}

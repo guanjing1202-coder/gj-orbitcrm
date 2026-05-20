@@ -1,0 +1,71 @@
+package com.orbitcrm.crm.api;
+
+import javax.validation.constraints.NotBlank;
+import java.time.LocalDate;
+
+public class DealCreateRequest {
+    @NotBlank
+    private String dealName;
+    private Long customerId;
+    private Long pipelineId;
+    private Long stageId;
+    private Long amountCent;
+    private LocalDate expectedCloseDate;
+    private Long ownerUserId;
+
+    public String getDealName() {
+        return dealName;
+    }
+
+    public void setDealName(String dealName) {
+        this.dealName = dealName;
+    }
+
+    public Long getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(Long customerId) {
+        this.customerId = customerId;
+    }
+
+    public Long getPipelineId() {
+        return pipelineId;
+    }
+
+    public void setPipelineId(Long pipelineId) {
+        this.pipelineId = pipelineId;
+    }
+
+    public Long getStageId() {
+        return stageId;
+    }
+
+    public void setStageId(Long stageId) {
+        this.stageId = stageId;
+    }
+
+    public Long getAmountCent() {
+        return amountCent;
+    }
+
+    public void setAmountCent(Long amountCent) {
+        this.amountCent = amountCent;
+    }
+
+    public LocalDate getExpectedCloseDate() {
+        return expectedCloseDate;
+    }
+
+    public void setExpectedCloseDate(LocalDate expectedCloseDate) {
+        this.expectedCloseDate = expectedCloseDate;
+    }
+
+    public Long getOwnerUserId() {
+        return ownerUserId;
+    }
+
+    public void setOwnerUserId(Long ownerUserId) {
+        this.ownerUserId = ownerUserId;
+    }
+}

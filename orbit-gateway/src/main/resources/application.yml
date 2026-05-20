@@ -1,0 +1,62 @@
+server:
+  port: 9201
+spring:
+  application:
+    name: orbit-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+      routes:
+        - id: orbit-auth
+          uri: lb://orbit-auth
+          predicates:
+            - Path=/api/auth/**
+        - id: orbit-tenant
+          uri: lb://orbit-tenant
+          predicates:
+            - Path=/api/tenants/**
+        - id: orbit-billing
+          uri: lb://orbit-billing
+          predicates:
+            - Path=/api/billing/**
+        - id: orbit-system
+          uri: lb://orbit-system
+          predicates:
+            - Path=/api/system/**
+        - id: orbit-crm-service
+          uri: lb://orbit-crm-service
+          predicates:
+            - Path=/api/crm/**
+        - id: orbit-task
+          uri: lb://orbit-task
+          predicates:
+            - Path=/api/tasks/**
+        - id: orbit-report
+          uri: lb://orbit-report
+          predicates:
+            - Path=/api/reports/**
+        - id: orbit-file
+          uri: lb://orbit-file
+          predicates:
+            - Path=/api/files/**
+        - id: orbit-message
+          uri: lb://orbit-message
+          predicates:
+            - Path=/api/messages/**
+        - id: orbit-openapi-admin
+          uri: lb://orbit-openapi
+          predicates:
+            - Path=/api/openapi/**
+        - id: orbit-openapi-public
+          uri: lb://orbit-openapi
+          predicates:
+            - Path=/openapi/**
+        - id: orbit-admin
+          uri: lb://orbit-admin
+          predicates:
+            - Path=/api/admin/**

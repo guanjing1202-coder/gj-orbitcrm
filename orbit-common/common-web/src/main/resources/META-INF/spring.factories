@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.orbitcrm.common.web.config.TenantWebAutoConfiguration
