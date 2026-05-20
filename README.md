@@ -226,6 +226,12 @@ gj-orbitcrm
 
 - 客户列表
 - 新增客户
+- 客户详情
+- 编辑客户资料
+- 转移客户负责人
+- 客户软删除
+- 客户回收站
+- 恢复已删除客户
 - 客户基础信息
 - 客户类型、联系方式、地址
 - 客户负责人
@@ -443,7 +449,13 @@ PATCH  /api/crm/leads/{id}/status            更新线索状态
 POST   /api/crm/leads/{id}/convert           线索转客户
 
 GET    /api/crm/customers                    客户列表
+GET    /api/crm/customers/deleted            客户回收站
+GET    /api/crm/customers/{id}               客户详情
 POST   /api/crm/customers                    创建客户
+PATCH  /api/crm/customers/{id}               编辑客户
+PATCH  /api/crm/customers/{id}/owner         转移客户负责人
+DELETE /api/crm/customers/{id}               删除客户
+PATCH  /api/crm/customers/{id}/restore       恢复客户
 GET    /api/crm/contacts                     联系人列表
 POST   /api/crm/contacts                     创建联系人
 PATCH  /api/crm/contacts/{id}                编辑联系人

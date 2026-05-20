@@ -3,6 +3,7 @@ package com.orbitcrm.crm.service;
 import com.orbitcrm.common.datasource.TenantJdbcTemplateProvider;
 import com.orbitcrm.crm.api.CustomerCreateRequest;
 import com.orbitcrm.crm.api.CustomerResponse;
+import com.orbitcrm.crm.api.CustomerUpdateRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -82,6 +83,97 @@ class CustomerServiceTest {
                 eq("Shanghai"),
                 eq(15L));
         verify(tenantJdbcTemplate).queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        verifyNoInteractions(refreshedJdbcTemplate);
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void updateCustomerReadsUpdatedCustomerFromSameTenantJdbcTemplate() throws Exception {
+        TenantJdbcTemplateProvider tenantJdbcTemplateProvider = mock(TenantJdbcTemplateProvider.class);
+        PlanLimitService planLimitService = mock(PlanLimitService.class);
+        JdbcTemplate tenantJdbcTemplate = mock(JdbcTemplate.class);
+        JdbcTemplate refreshedJdbcTemplate = mock(JdbcTemplate.class);
+        CustomerService service = new CustomerService(tenantJdbcTemplateProvider, planLimitService);
+        CustomerUpdateRequest request = new CustomerUpdateRequest();
+        request.setCustomerName("Orbit Labs China");
+        request.setPhone("18800005555");
+        request.setOwnerUserId(18L);
+
+        when(tenantJdbcTemplateProvider.currentTenantJdbcTemplate())
+                .thenReturn(tenantJdbcTemplate, refreshedJdbcTemplate);
+        when(tenantJdbcTemplate.queryForObject(anyString(), any(RowMapper.class), eq(66L)))
+                .thenAnswer(invocation -> {
+                    RowMapper mapper = invocation.getArgument(1);
+                    ResultSet resultSet = mock(ResultSet.class);
+                    when(resultSet.getLong("id")).thenReturn(66L);
+                    when(resultSet.getString("customer_name")).thenReturn("Orbit Labs China");
+                    when(resultSet.getString("customer_type")).thenReturn("ENTERPRISE");
+                    when(resultSet.getString("phone")).thenReturn("18800005555");
+                    when(resultSet.getString("email")).thenReturn("hello@orbit.example");
+                    when(resultSet.getString("address")).thenReturn("Shanghai");
+                    when(resultSet.getObject("owner_user_id")).thenReturn(18L);
+                    when(resultSet.getString("status")).thenReturn("ACTIVE");
+                    when(resultSet.getTimestamp("create_time"))
+                            .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 5, 20, 14, 40)));
+                    return mapper.mapRow(resultSet, 0);
+                });
+
+        CustomerResponse response = service.updateCustomer(66L, request);
+
+        assertNotNull(response);
+        assertEquals("Orbit Labs China", response.getCustomerName());
+        assertEquals("18800005555", response.getPhone());
+        assertEquals(18L, response.getOwnerUserId());
+        verify(tenantJdbcTemplateProvider, times(1)).currentTenantJdbcTemplate();
+        verify(tenantJdbcTemplate).update(
+                eq("UPDATE crm_customer SET customer_name = ?, phone = ?, owner_user_id = ? WHERE id = ? AND status <> 'DELETED'"),
+                eq("Orbit Labs China"),
+                eq("18800005555"),
+                eq(18L),
+                eq(66L));
+        verifyNoInteractions(refreshedJdbcTemplate);
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void restoreCustomerChecksPlanLimitAndReadsRestoredCustomerFromSameTenantJdbcTemplate() throws Exception {
+        TenantJdbcTemplateProvider tenantJdbcTemplateProvider = mock(TenantJdbcTemplateProvider.class);
+        PlanLimitService planLimitService = mock(PlanLimitService.class);
+        JdbcTemplate tenantJdbcTemplate = mock(JdbcTemplate.class);
+        JdbcTemplate refreshedJdbcTemplate = mock(JdbcTemplate.class);
+        CustomerService service = new CustomerService(tenantJdbcTemplateProvider, planLimitService);
+
+        when(tenantJdbcTemplateProvider.currentTenantJdbcTemplate())
+                .thenReturn(tenantJdbcTemplate, refreshedJdbcTemplate);
+        when(tenantJdbcTemplate.update(
+                "UPDATE crm_customer SET status = 'ACTIVE' WHERE id = ? AND status = 'DELETED'",
+                66L)).thenReturn(1);
+        when(tenantJdbcTemplate.queryForObject(anyString(), any(RowMapper.class), eq(66L)))
+                .thenAnswer(invocation -> {
+                    RowMapper mapper = invocation.getArgument(1);
+                    ResultSet resultSet = mock(ResultSet.class);
+                    when(resultSet.getLong("id")).thenReturn(66L);
+                    when(resultSet.getString("customer_name")).thenReturn("Orbit Labs");
+                    when(resultSet.getString("customer_type")).thenReturn("ENTERPRISE");
+                    when(resultSet.getString("phone")).thenReturn("18800003333");
+                    when(resultSet.getString("email")).thenReturn("hello@orbit.example");
+                    when(resultSet.getString("address")).thenReturn("Shanghai");
+                    when(resultSet.getObject("owner_user_id")).thenReturn(15L);
+                    when(resultSet.getString("status")).thenReturn("ACTIVE");
+                    when(resultSet.getTimestamp("create_time"))
+                            .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 5, 20, 14, 40)));
+                    return mapper.mapRow(resultSet, 0);
+                });
+
+        CustomerResponse response = service.restoreCustomer(66L);
+
+        assertNotNull(response);
+        assertEquals("ACTIVE", response.getStatus());
+        verify(planLimitService).assertCustomerLimitAvailable();
+        verify(tenantJdbcTemplateProvider, times(1)).currentTenantJdbcTemplate();
+        verify(tenantJdbcTemplate).update(
+                "UPDATE crm_customer SET status = 'ACTIVE' WHERE id = ? AND status = 'DELETED'",
+                66L);
         verifyNoInteractions(refreshedJdbcTemplate);
     }
 }
