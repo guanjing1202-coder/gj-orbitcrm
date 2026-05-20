@@ -1,5 +1,7 @@
 package com.orbitcrm.tenant.service;
 
+import com.orbitcrm.common.datasource.TenantDatabaseProperties;
+import com.orbitcrm.common.datasource.TenantJdbcTemplateFactory;
 import com.orbitcrm.tenant.api.TenantRegisterRequest;
 import com.orbitcrm.tenant.api.TenantRegisterResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -7,7 +9,6 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class TenantProvisioningService {
     private static final String TEMPLATE_SQL = "database/tenant-template/001_tenant_schema.sql";
 
     private final JdbcTemplate platformJdbcTemplate;
+    private final TenantJdbcTemplateFactory tenantJdbcTemplateFactory;
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final String mysqlHost;
     private final int mysqlPort;
@@ -37,12 +39,14 @@ public class TenantProvisioningService {
     private final int trialDays;
 
     public TenantProvisioningService(JdbcTemplate platformJdbcTemplate,
+                                     TenantJdbcTemplateFactory tenantJdbcTemplateFactory,
                                      @Value("${orbit.provisioning.mysql-host}") String mysqlHost,
                                      @Value("${orbit.provisioning.mysql-port}") int mysqlPort,
                                      @Value("${orbit.provisioning.mysql-username}") String mysqlUsername,
                                      @Value("${orbit.provisioning.mysql-password}") String mysqlPassword,
                                      @Value("${orbit.provisioning.trial-days}") int trialDays) {
         this.platformJdbcTemplate = platformJdbcTemplate;
+        this.tenantJdbcTemplateFactory = tenantJdbcTemplateFactory;
         this.mysqlHost = mysqlHost;
         this.mysqlPort = mysqlPort;
         this.mysqlUsername = mysqlUsername;
@@ -105,7 +109,8 @@ public class TenantProvisioningService {
     }
 
     private void initializeTenantDatabase(String databaseName, TenantRegisterRequest request) {
-        JdbcTemplate tenantJdbcTemplate = tenantJdbcTemplate(databaseName);
+        JdbcTemplate tenantJdbcTemplate = tenantJdbcTemplateFactory.createTenantJdbcTemplate(
+                tenantDatabaseProperties(request.getTenantCode(), databaseName));
         executeTemplateSql(tenantJdbcTemplate);
         Long adminRoleId = tenantJdbcTemplate.queryForObject(
                 "SELECT id FROM sys_role WHERE role_code = 'tenant_admin'",
@@ -178,8 +183,8 @@ public class TenantProvisioningService {
     private Long findPlanId(String planCode) {
         List<Long> planIds = platformJdbcTemplate.query(
                 "SELECT id FROM platform_plan WHERE plan_code = ? AND status = 'ACTIVE'",
-                new Object[]{planCode},
-                (rs, rowNum) -> rs.getLong("id"));
+                (rs, rowNum) -> rs.getLong("id"),
+                planCode);
         if (planIds.isEmpty() && !"starter".equals(planCode)) {
             return findPlanId("starter");
         }
@@ -205,12 +210,13 @@ public class TenantProvisioningService {
                 detailJson);
     }
 
-    private JdbcTemplate tenantJdbcTemplate(String databaseName) {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setUrl(tenantJdbcUrl(databaseName));
-        dataSource.setUsername(mysqlUsername);
-        dataSource.setPassword(mysqlPassword);
-        return new JdbcTemplate(dataSource);
+    private TenantDatabaseProperties tenantDatabaseProperties(String tenantCode, String databaseName) {
+        TenantDatabaseProperties properties = new TenantDatabaseProperties();
+        properties.setTenantCode(normalizeTenantCode(tenantCode));
+        properties.setJdbcUrl(tenantJdbcUrl(databaseName));
+        properties.setUsername(mysqlUsername);
+        properties.setPassword(encodePasswordCipher(mysqlPassword));
+        return properties;
     }
 
     private String tenantJdbcUrl(String databaseName) {

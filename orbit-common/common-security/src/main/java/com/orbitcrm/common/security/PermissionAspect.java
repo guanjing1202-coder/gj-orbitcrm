@@ -26,8 +26,9 @@ public class PermissionAspect {
                         "JOIN sys_role_permission rp ON ur.role_id = rp.role_id " +
                         "JOIN sys_permission p ON rp.permission_id = p.id " +
                         "WHERE u.id = ? AND u.status = 'ACTIVE' AND p.permission_code = ?",
-                new Object[]{currentUser.getUserId(), requiresPermission.value()},
-                Integer.class);
+                Integer.class,
+                currentUser.getUserId(),
+                requiresPermission.value());
         if (count == null || count == 0) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "permission denied");
         }

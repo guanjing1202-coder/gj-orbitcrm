@@ -2,19 +2,18 @@ package com.orbitcrm.auth.service;
 
 import com.orbitcrm.auth.api.LoginRequest;
 import com.orbitcrm.auth.api.LoginResponse;
+import com.orbitcrm.common.datasource.TenantDatabaseProperties;
+import com.orbitcrm.common.datasource.TenantJdbcTemplateFactory;
 import com.orbitcrm.common.security.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -24,14 +23,17 @@ public class LoginService {
     private static final Pattern TENANT_CODE = Pattern.compile("^[a-z][a-z0-9-]{2,31}$");
 
     private final JdbcTemplate platformJdbcTemplate;
+    private final TenantJdbcTemplateFactory tenantJdbcTemplateFactory;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final long ttlMillis;
 
     public LoginService(JdbcTemplate platformJdbcTemplate,
+                        TenantJdbcTemplateFactory tenantJdbcTemplateFactory,
                         JwtTokenProvider jwtTokenProvider,
                         @Value("${orbit.jwt.ttl-millis}") long ttlMillis) {
         this.platformJdbcTemplate = platformJdbcTemplate;
+        this.tenantJdbcTemplateFactory = tenantJdbcTemplateFactory;
         this.jwtTokenProvider = jwtTokenProvider;
         this.ttlMillis = ttlMillis;
     }
@@ -41,7 +43,8 @@ public class LoginService {
         TenantDatabase tenantDatabase = loadTenantDatabase(tenantCode);
         assertSubscriptionAllowsLogin(tenantDatabase.getTenantId());
 
-        JdbcTemplate tenantJdbcTemplate = tenantJdbcTemplate(tenantDatabase);
+        JdbcTemplate tenantJdbcTemplate = tenantJdbcTemplateFactory.createTenantJdbcTemplate(
+                tenantDatabase.getProperties());
         UserCredential credential = loadUser(tenantJdbcTemplate, request.getUsername());
         if (credential == null || !"ACTIVE".equals(credential.getStatus()) ||
                 !passwordEncoder.matches(request.getPassword(), credential.getPasswordHash())) {
@@ -60,13 +63,14 @@ public class LoginService {
                 "SELECT t.id AS tenant_id, t.status AS tenant_status, d.jdbc_url, d.username, d.password_cipher " +
                         "FROM platform_tenant t JOIN platform_tenant_database d ON t.id = d.tenant_id " +
                         "WHERE t.tenant_code = ? AND d.status = 'ACTIVE'",
-                new Object[]{tenantCode},
                 (rs, rowNum) -> new TenantDatabase(
                         rs.getLong("tenant_id"),
                         rs.getString("tenant_status"),
+                        tenantCode,
                         rs.getString("jdbc_url"),
                         rs.getString("username"),
-                        decodePasswordCipher(rs.getString("password_cipher"))));
+                        rs.getString("password_cipher")),
+                tenantCode);
         if (records.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "tenant is not available");
         }
@@ -80,8 +84,8 @@ public class LoginService {
     private void assertSubscriptionAllowsLogin(Long tenantId) {
         List<String> statuses = platformJdbcTemplate.query(
                 "SELECT status FROM platform_subscription WHERE tenant_id = ? ORDER BY id DESC LIMIT 1",
-                new Object[]{tenantId},
-                (rs, rowNum) -> rs.getString("status"));
+                (rs, rowNum) -> rs.getString("status"),
+                tenantId);
         if (statuses.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "subscription is not available");
         }
@@ -94,21 +98,13 @@ public class LoginService {
     private UserCredential loadUser(JdbcTemplate tenantJdbcTemplate, String username) {
         List<UserCredential> users = tenantJdbcTemplate.query(
                 "SELECT id, username, password_hash, status FROM sys_user WHERE username = ?",
-                new Object[]{username},
                 (rs, rowNum) -> new UserCredential(
                         rs.getLong("id"),
                         rs.getString("username"),
                         rs.getString("password_hash"),
-                        rs.getString("status")));
+                        rs.getString("status")),
+                username);
         return users.isEmpty() ? null : users.get(0);
-    }
-
-    private JdbcTemplate tenantJdbcTemplate(TenantDatabase tenantDatabase) {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setUrl(tenantDatabase.getJdbcUrl());
-        dataSource.setUsername(tenantDatabase.getUsername());
-        dataSource.setPassword(tenantDatabase.getPassword());
-        return new JdbcTemplate(dataSource);
     }
 
     private void writeLoginLog(JdbcTemplate tenantJdbcTemplate, Long userId, String username,
@@ -133,30 +129,20 @@ public class LoginService {
         return normalized;
     }
 
-    private String decodePasswordCipher(String passwordCipher) {
-        if (!StringUtils.hasText(passwordCipher)) {
-            return "";
-        }
-        try {
-            return new String(Base64.getDecoder().decode(passwordCipher), StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException ex) {
-            return passwordCipher;
-        }
-    }
-
     private static class TenantDatabase {
         private final Long tenantId;
         private final String tenantStatus;
-        private final String jdbcUrl;
-        private final String username;
-        private final String password;
+        private final TenantDatabaseProperties properties;
 
-        TenantDatabase(Long tenantId, String tenantStatus, String jdbcUrl, String username, String password) {
+        TenantDatabase(Long tenantId, String tenantStatus, String tenantCode,
+                       String jdbcUrl, String username, String password) {
             this.tenantId = tenantId;
             this.tenantStatus = tenantStatus;
-            this.jdbcUrl = jdbcUrl;
-            this.username = username;
-            this.password = password;
+            this.properties = new TenantDatabaseProperties();
+            this.properties.setTenantCode(tenantCode);
+            this.properties.setJdbcUrl(jdbcUrl);
+            this.properties.setUsername(username);
+            this.properties.setPassword(password);
         }
 
         Long getTenantId() {
@@ -167,16 +153,8 @@ public class LoginService {
             return tenantStatus;
         }
 
-        String getJdbcUrl() {
-            return jdbcUrl;
-        }
-
-        String getUsername() {
-            return username;
-        }
-
-        String getPassword() {
-            return password;
+        TenantDatabaseProperties getProperties() {
+            return properties;
         }
     }
 

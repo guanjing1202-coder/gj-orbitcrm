@@ -16,6 +16,8 @@ import java.util.List;
 @Service
 public class OpenApiKeyValidator {
     public static final String OPENAPI_KEY_HEADER = "X-OpenAPI-Key";
+    private static final List<String> OPENAPI_ALLOWED_SUBSCRIPTION_STATUSES =
+            Arrays.asList("TRIAL", "ACTIVE", "PAST_DUE");
 
     private final JdbcTemplate platformJdbcTemplate;
     private final TenantJdbcTemplateProvider tenantJdbcTemplateProvider;
@@ -52,13 +54,14 @@ public class OpenApiKeyValidator {
         List<String> statuses = platformJdbcTemplate.query(
                 "SELECT s.status FROM platform_tenant t JOIN platform_subscription s ON t.id = s.tenant_id " +
                         "WHERE t.tenant_code = ? AND t.status = 'ACTIVE' ORDER BY s.id DESC LIMIT 1",
-                new Object[]{tenantCode},
-                (rs, rowNum) -> rs.getString("status"));
+                (rs, rowNum) -> rs.getString("status"),
+                tenantCode
+            );
         if (statuses.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "subscription is not available");
         }
         String status = statuses.get(0);
-        if ("FROZEN".equals(status) || "CANCELED".equals(status) || "EXPIRED".equals(status)) {
+        if (!OPENAPI_ALLOWED_SUBSCRIPTION_STATUSES.contains(status)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "subscription does not allow openapi access");
         }
     }
@@ -67,8 +70,9 @@ public class OpenApiKeyValidator {
         try {
             return jdbcTemplate.queryForObject(
                     "SELECT id, scopes FROM sys_openapi_key WHERE key_hash = ? AND status = 'ACTIVE'",
-                    new Object[]{keyHash},
-                    (rs, rowNum) -> new OpenApiKeyRecord(rs.getLong("id"), rs.getString("scopes")));
+                    (rs, rowNum) -> new OpenApiKeyRecord(rs.getLong("id"), rs.getString("scopes")),
+                    keyHash
+                );
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "openapi key is invalid", ex);
         }

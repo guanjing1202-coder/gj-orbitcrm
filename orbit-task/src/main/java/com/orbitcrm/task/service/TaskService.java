@@ -35,22 +35,26 @@ public class TaskService {
             return jdbcTemplate.query(
                     "SELECT id, title, related_type, related_id, assignee_user_id, due_time, remind_time, remind_status, status, create_time " +
                             "FROM crm_task WHERE status = ? AND assignee_user_id = ? ORDER BY due_time IS NULL, due_time, id DESC LIMIT 100",
-                    new Object[]{status, assigneeUserId},
-                    (rs, rowNum) -> mapTask(rs));
+                    (rs, rowNum) -> mapTask(rs),
+                    status,
+                    assigneeUserId
+                );
         }
         if (StringUtils.hasText(status)) {
             return jdbcTemplate.query(
                     "SELECT id, title, related_type, related_id, assignee_user_id, due_time, remind_time, remind_status, status, create_time " +
                             "FROM crm_task WHERE status = ? ORDER BY due_time IS NULL, due_time, id DESC LIMIT 100",
-                    new Object[]{status},
-                    (rs, rowNum) -> mapTask(rs));
+                    (rs, rowNum) -> mapTask(rs),
+                    status
+                );
         }
         if (assigneeUserId != null) {
             return jdbcTemplate.query(
                     "SELECT id, title, related_type, related_id, assignee_user_id, due_time, remind_time, remind_status, status, create_time " +
                             "FROM crm_task WHERE assignee_user_id = ? ORDER BY due_time IS NULL, due_time, id DESC LIMIT 100",
-                    new Object[]{assigneeUserId},
-                    (rs, rowNum) -> mapTask(rs));
+                    (rs, rowNum) -> mapTask(rs),
+                    assigneeUserId
+                );
         }
         return jdbcTemplate.query(
                 "SELECT id, title, related_type, related_id, assignee_user_id, due_time, remind_time, remind_status, status, create_time " +
@@ -94,8 +98,9 @@ public class TaskService {
             return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
                     "SELECT id, title, related_type, related_id, assignee_user_id, due_time, remind_time, remind_status, status, create_time " +
                             "FROM crm_task WHERE id = ?",
-                    new Object[]{id},
-                    (rs, rowNum) -> mapTask(rs));
+                    (rs, rowNum) -> mapTask(rs),
+                    id
+                );
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "task not found", ex);
         }

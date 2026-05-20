@@ -51,8 +51,10 @@ public class FileService {
                     "SELECT id, biz_type, biz_id, bucket_name, object_key, original_name, content_type, " +
                             "size_bytes, uploader_user_id, status, create_time FROM sys_file " +
                             "WHERE status = 'ACTIVE' AND biz_type = ? AND biz_id = ? ORDER BY id DESC",
-                    new Object[]{bizType, bizId},
-                    (rs, rowNum) -> mapFile(rs));
+                    (rs, rowNum) -> mapFile(rs),
+                    bizType,
+                    bizId
+                );
         }
         return jdbcTemplate.query(
                 "SELECT id, biz_type, biz_id, bucket_name, object_key, original_name, content_type, " +
@@ -126,8 +128,9 @@ public class FileService {
                 "SELECT id, biz_type, biz_id, bucket_name, object_key, original_name, content_type, " +
                         "size_bytes, uploader_user_id, status, create_time FROM sys_file " +
                         "WHERE id = ? AND status = 'ACTIVE'",
-                new Object[]{id},
-                (rs, rowNum) -> mapFile(rs));
+                (rs, rowNum) -> mapFile(rs),
+                id
+            );
         if (files.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "file not found");
         }
@@ -156,8 +159,9 @@ public class FileService {
                         "JOIN platform_plan_feature f ON s.plan_id = f.plan_id " +
                         "WHERE t.tenant_code = ? AND f.feature_key = 'file_storage_gb' " +
                         "ORDER BY s.id DESC LIMIT 1",
-                new Object[]{tenantCode},
-                (rs, rowNum) -> rs.getString("feature_value"));
+                (rs, rowNum) -> rs.getString("feature_value"),
+                tenantCode
+            );
         if (values.isEmpty()) {
             return -1L;
         }

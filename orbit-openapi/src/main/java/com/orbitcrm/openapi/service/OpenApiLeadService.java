@@ -41,16 +41,17 @@ public class OpenApiLeadService {
                 request.getOwnerUserId(),
                 sourceOrDefault(request.getSource()));
         Long id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        return getLead(id);
+        return getLead(jdbcTemplate, id);
     }
 
-    private OpenApiLeadResponse getLead(Long id) {
+    private OpenApiLeadResponse getLead(JdbcTemplate jdbcTemplate, Long id) {
         try {
-            return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
+            return jdbcTemplate.queryForObject(
                     "SELECT id, lead_name, company_name, phone, email, status, owner_user_id, source, create_time " +
                             "FROM crm_lead WHERE id = ?",
-                    new Object[]{id},
-                    (rs, rowNum) -> mapLead(rs));
+                    (rs, rowNum) -> mapLead(rs),
+                    id
+                );
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "lead not found", ex);
         }

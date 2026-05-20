@@ -25,14 +25,15 @@ public class OperationLogService {
             return jdbcTemplate.query(
                     "SELECT id, user_id, action, target_type, target_id, detail_json, create_time " +
                             "FROM sys_operation_log WHERE action = ? ORDER BY id DESC LIMIT " + safeLimit,
-                    new Object[]{action},
                     (rs, rowNum) -> mapLog(rs.getLong("id"),
                             longOrNull(rs.getObject("user_id")),
                             rs.getString("action"),
                             rs.getString("target_type"),
                             rs.getString("target_id"),
                             rs.getString("detail_json"),
-                            rs.getTimestamp("create_time")));
+                            rs.getTimestamp("create_time")),
+                    action
+                );
         }
         return jdbcTemplate.query(
                 "SELECT id, user_id, action, target_type, target_id, detail_json, create_time " +

@@ -53,8 +53,10 @@ public class PlanLimitService {
                         "JOIN platform_plan_feature f ON s.plan_id = f.plan_id " +
                         "WHERE t.tenant_code = ? AND f.feature_key = ? " +
                         "ORDER BY s.id DESC LIMIT 1",
-                new Object[]{tenantCode, featureKey},
-                (rs, rowNum) -> rs.getString("feature_value"));
+                (rs, rowNum) -> rs.getString("feature_value"),
+                tenantCode,
+                featureKey
+            );
         if (values.isEmpty()) {
             return -1;
         }

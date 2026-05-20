@@ -45,7 +45,6 @@ public class TenantDomainService {
                 "SELECT d.id, t.tenant_code, d.domain, d.verify_token, d.verify_status, d.ssl_status, d.status, d.create_time " +
                         "FROM platform_tenant_domain d JOIN platform_tenant t ON d.tenant_id = t.id " +
                         "WHERE t.tenant_code = ? ORDER BY d.id DESC",
-                new Object[]{tenantCode},
                 (rs, rowNum) -> {
                     TenantDomainResponse response = new TenantDomainResponse();
                     response.setId(rs.getLong("id"));
@@ -58,7 +57,9 @@ public class TenantDomainService {
                     response.setStatus(rs.getString("status"));
                     response.setCreateTime(toLocalDateTime(rs.getTimestamp("create_time")));
                     return response;
-                });
+                },
+                tenantCode
+            );
     }
 
     @OperationLog(action = "TENANT_DOMAIN_BIND", targetType = "platform_tenant_domain")
@@ -128,7 +129,6 @@ public class TenantDomainService {
                 "SELECT d.id, t.tenant_code, d.domain, d.verify_token, d.verify_status, d.ssl_status, d.status, d.create_time " +
                         "FROM platform_tenant_domain d JOIN platform_tenant t ON d.tenant_id = t.id " +
                         "WHERE d.id = ? AND t.tenant_code = ?",
-                new Object[]{id, tenantCode},
                 (rs, rowNum) -> {
                     TenantDomainResponse response = new TenantDomainResponse();
                     response.setId(rs.getLong("id"));
@@ -141,7 +141,10 @@ public class TenantDomainService {
                     response.setStatus(rs.getString("status"));
                     response.setCreateTime(toLocalDateTime(rs.getTimestamp("create_time")));
                     return response;
-                });
+                },
+                id,
+                tenantCode
+            );
         if (domains.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "domain not found");
         }
@@ -156,8 +159,9 @@ public class TenantDomainService {
                         "JOIN platform_plan_feature f ON s.plan_id = f.plan_id " +
                         "WHERE t.tenant_code = ? AND f.feature_key = 'custom_domain' " +
                         "ORDER BY s.id DESC LIMIT 1",
-                new Object[]{tenantCode},
-                (rs, rowNum) -> rs.getString("feature_value"));
+                (rs, rowNum) -> rs.getString("feature_value"),
+                tenantCode
+            );
         if (values.isEmpty() || !"true".equalsIgnoreCase(values.get(0))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "current plan does not include custom domain");
         }
@@ -166,8 +170,9 @@ public class TenantDomainService {
     private Long tenantId(String tenantCode) {
         List<Long> tenantIds = platformJdbcTemplate.query(
                 "SELECT id FROM platform_tenant WHERE tenant_code = ? AND status = 'ACTIVE'",
-                new Object[]{tenantCode},
-                (rs, rowNum) -> rs.getLong("id"));
+                (rs, rowNum) -> rs.getLong("id"),
+                tenantCode
+            );
         if (tenantIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "tenant is not active");
         }

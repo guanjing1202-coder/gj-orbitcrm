@@ -35,8 +35,9 @@ public class LeadService {
             return jdbcTemplate.query(
                     "SELECT id, lead_name, company_name, phone, email, status, owner_user_id, source, create_time " +
                             "FROM crm_lead WHERE status = ? ORDER BY id DESC LIMIT 100",
-                    new Object[]{status},
-                    (rs, rowNum) -> mapLead(rs));
+                    (rs, rowNum) -> mapLead(rs),
+                    status
+                );
         }
         return jdbcTemplate.query(
                 "SELECT id, lead_name, company_name, phone, email, status, owner_user_id, source, create_time " +
@@ -58,7 +59,7 @@ public class LeadService {
                 request.getOwnerUserId(),
                 request.getSource());
         Long id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        return getLead(id);
+        return getLead(jdbcTemplate, id);
     }
 
     @OperationLog(action = "LEAD_STATUS_UPDATE", targetType = "crm_lead", targetIdArg = 0)
@@ -71,17 +72,17 @@ public class LeadService {
         if (updated == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "lead not found");
         }
-        return getLead(id);
+        return getLead(jdbcTemplate, id);
     }
 
     @OperationLog(action = "LEAD_CONVERT_TO_CUSTOMER", targetType = "crm_lead", targetIdArg = 0)
     public CustomerResponse convertToCustomer(Long id) {
         planLimitService.assertCustomerLimitAvailable();
-        LeadResponse lead = getLead(id);
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        LeadResponse lead = getLead(jdbcTemplate, id);
         if ("CONVERTED".equals(lead.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "lead already converted");
         }
-        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         String customerName = StringUtils.hasText(lead.getCompanyName()) ? lead.getCompanyName() : lead.getLeadName();
         jdbcTemplate.update(
                 "INSERT INTO crm_customer (customer_name, phone, email, owner_user_id, status) VALUES (?, ?, ?, ?, 'ACTIVE')",
@@ -94,7 +95,6 @@ public class LeadService {
         return jdbcTemplate.queryForObject(
                 "SELECT id, customer_name, customer_type, phone, email, address, owner_user_id, status, create_time " +
                         "FROM crm_customer WHERE id = ?",
-                new Object[]{customerId},
                 (rs, rowNum) -> {
                     CustomerResponse response = new CustomerResponse();
                     response.setId(rs.getLong("id"));
@@ -107,16 +107,23 @@ public class LeadService {
                     response.setStatus(rs.getString("status"));
                     response.setCreateTime(toLocalDateTime(rs.getTimestamp("create_time")));
                     return response;
-                });
+                },
+                customerId
+            );
     }
 
     private LeadResponse getLead(Long id) {
+        return getLead(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id);
+    }
+
+    private LeadResponse getLead(JdbcTemplate jdbcTemplate, Long id) {
         try {
-            return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
+            return jdbcTemplate.queryForObject(
                     "SELECT id, lead_name, company_name, phone, email, status, owner_user_id, source, create_time " +
                             "FROM crm_lead WHERE id = ? AND status <> 'DELETED'",
-                    new Object[]{id},
-                    (rs, rowNum) -> mapLead(rs));
+                    (rs, rowNum) -> mapLead(rs),
+                    id
+                );
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "lead not found", ex);
         }

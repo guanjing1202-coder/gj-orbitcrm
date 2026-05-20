@@ -53,7 +53,6 @@ public class PlatformAdminService {
         if (StringUtils.hasText(status)) {
             return jdbcTemplate.query(
                     tenantListSql("WHERE t.status = ?"),
-                    new Object[]{normalizeStatus(status)},
                     (rs, rowNum) -> mapTenant(rs.getLong("id"),
                             rs.getString("tenant_code"),
                             rs.getString("tenant_name"),
@@ -63,7 +62,9 @@ public class PlatformAdminService {
                             rs.getString("plan_code"),
                             rs.getString("subscription_status"),
                             rs.getTimestamp("subscription_end_time"),
-                            rs.getTimestamp("create_time")));
+                            rs.getTimestamp("create_time")),
+                    normalizeStatus(status)
+                );
         }
         return jdbcTemplate.query(
                 tenantListSql(""),
@@ -140,8 +141,9 @@ public class PlatformAdminService {
                 status);
         Long planId = jdbcTemplate.queryForObject(
                 "SELECT id FROM platform_plan WHERE plan_code = ?",
-                new Object[]{planCode},
-                Long.class);
+                Long.class,
+                planCode
+            );
         if (request.getFeatures() != null) {
             for (PlatformPlanFeatureRequest feature : request.getFeatures()) {
                 upsertPlanFeature(planId, feature);
@@ -156,7 +158,6 @@ public class PlatformAdminService {
         if (StringUtils.hasText(status)) {
             return jdbcTemplate.query(
                     subscriptionListSql("WHERE s.status = ?"),
-                    new Object[]{normalizeStatus(status)},
                     (rs, rowNum) -> mapSubscription(rs.getLong("id"),
                             rs.getString("tenant_code"),
                             rs.getString("plan_code"),
@@ -164,7 +165,9 @@ public class PlatformAdminService {
                             rs.getTimestamp("start_time"),
                             rs.getTimestamp("end_time"),
                             rs.getTimestamp("trial_end_time"),
-                            rs.getInt("grace_days")));
+                            rs.getInt("grace_days")),
+                    normalizeStatus(status)
+                );
         }
         return jdbcTemplate.query(
                 subscriptionListSql(""),
@@ -182,7 +185,6 @@ public class PlatformAdminService {
         if (StringUtils.hasText(status)) {
             return jdbcTemplate.query(
                     orderListSql("WHERE o.status = ?"),
-                    new Object[]{normalizeStatus(status)},
                     (rs, rowNum) -> mapOrder(rs.getLong("id"),
                             rs.getString("order_no"),
                             rs.getString("tenant_code"),
@@ -192,7 +194,9 @@ public class PlatformAdminService {
                             rs.getLong("amount_cent"),
                             rs.getString("status"),
                             rs.getTimestamp("paid_time"),
-                            rs.getTimestamp("create_time")));
+                            rs.getTimestamp("create_time")),
+                    normalizeStatus(status)
+                );
         }
         return jdbcTemplate.query(
                 orderListSql(""),
@@ -214,7 +218,6 @@ public class PlatformAdminService {
             return jdbcTemplate.query(
                     "SELECT id, operator_id, action, target_type, target_id, detail_json, ip, create_time " +
                             "FROM platform_operation_log WHERE action = ? ORDER BY id DESC LIMIT " + safeLimit,
-                    new Object[]{action},
                     (rs, rowNum) -> mapLog(rs.getLong("id"),
                             longOrNull(rs.getObject("operator_id")),
                             rs.getString("action"),
@@ -222,7 +225,9 @@ public class PlatformAdminService {
                             rs.getString("target_id"),
                             rs.getString("detail_json"),
                             rs.getString("ip"),
-                            rs.getTimestamp("create_time")));
+                            rs.getTimestamp("create_time")),
+                    action
+                );
         }
         return jdbcTemplate.query(
                 "SELECT id, operator_id, action, target_type, target_id, detail_json, ip, create_time " +
@@ -240,7 +245,6 @@ public class PlatformAdminService {
     private PlatformTenantResponse getTenant(Long id) {
         List<PlatformTenantResponse> tenants = jdbcTemplate.query(
                 tenantListSql("WHERE t.id = ?"),
-                new Object[]{id},
                 (rs, rowNum) -> mapTenant(rs.getLong("id"),
                         rs.getString("tenant_code"),
                         rs.getString("tenant_name"),
@@ -250,7 +254,9 @@ public class PlatformAdminService {
                         rs.getString("plan_code"),
                         rs.getString("subscription_status"),
                         rs.getTimestamp("subscription_end_time"),
-                        rs.getTimestamp("create_time")));
+                        rs.getTimestamp("create_time")),
+                id
+            );
         if (tenants.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "tenant not found");
         }

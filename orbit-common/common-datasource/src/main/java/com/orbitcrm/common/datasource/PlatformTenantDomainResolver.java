@@ -28,8 +28,8 @@ public class PlatformTenantDomainResolver implements TenantDomainResolver {
                         "WHERE d.domain = ? AND d.verify_status = 'VERIFIED' " +
                         "AND d.status = 'ACTIVE' AND t.status = 'ACTIVE' " +
                         "ORDER BY d.id DESC LIMIT 1",
-                new Object[]{normalizedHost},
-                (rs, rowNum) -> rs.getString("tenant_code"));
+                (rs, rowNum) -> rs.getString("tenant_code"),
+                normalizedHost);
         return tenantCodes.isEmpty() ? null : tenantCodes.get(0);
     }
 

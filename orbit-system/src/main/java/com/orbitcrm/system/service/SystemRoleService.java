@@ -49,8 +49,9 @@ public class SystemRoleService {
                 request.getRoleName());
         Long roleId = jdbcTemplate.queryForObject(
                 "SELECT id FROM sys_role WHERE role_code = ?",
-                new Object[]{request.getRoleCode()},
-                Long.class);
+                Long.class,
+                request.getRoleCode()
+            );
         syncRolePermissions(jdbcTemplate, roleId, request.getPermissionCodes());
         return getRole(roleId);
     }
@@ -76,7 +77,6 @@ public class SystemRoleService {
                         "LEFT JOIN sys_role_permission rp ON r.id = rp.role_id " +
                         "LEFT JOIN sys_permission p ON rp.permission_id = p.id " +
                         "WHERE r.id = ? GROUP BY r.id, r.role_code, r.role_name",
-                new Object[]{roleId},
                 (rs, rowNum) -> {
                     RoleResponse response = new RoleResponse();
                     response.setId(rs.getLong("id"));
@@ -84,7 +84,9 @@ public class SystemRoleService {
                     response.setRoleName(rs.getString("role_name"));
                     response.setPermissionCodes(splitCsv(rs.getString("permission_codes")));
                     return response;
-                });
+                },
+                roleId
+            );
     }
 
     private void syncRolePermissions(JdbcTemplate jdbcTemplate, Long roleId, List<String> permissionCodes) {
@@ -95,8 +97,9 @@ public class SystemRoleService {
         for (String permissionCode : permissionCodes) {
             List<Long> permissionIds = jdbcTemplate.query(
                     "SELECT id FROM sys_permission WHERE permission_code = ?",
-                    new Object[]{permissionCode},
-                    (rs, rowNum) -> rs.getLong("id"));
+                    (rs, rowNum) -> rs.getLong("id"),
+                    permissionCode
+                );
             if (!permissionIds.isEmpty()) {
                 jdbcTemplate.update(
                         "INSERT INTO sys_role_permission (role_id, permission_id) VALUES (?, ?) " +

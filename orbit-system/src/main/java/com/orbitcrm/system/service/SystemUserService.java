@@ -98,7 +98,6 @@ public class SystemUserService {
                         "LEFT JOIN sys_role r ON ur.role_id = r.id " +
                         "WHERE u.id = ? " +
                         "GROUP BY u.id, u.username, u.real_name, u.email, u.phone, u.status, u.create_time",
-                new Object[]{id},
                 (rs, rowNum) -> {
                     UserResponse response = new UserResponse();
                     response.setId(rs.getLong("id"));
@@ -110,7 +109,9 @@ public class SystemUserService {
                     response.setCreateTime(toLocalDateTime(rs.getTimestamp("create_time")));
                     response.setRoleCodes(splitCsv(rs.getString("role_codes")));
                     return response;
-                });
+                },
+                id
+            );
         if (users.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "user not found");
         }
@@ -134,8 +135,9 @@ public class SystemUserService {
     private Long roleId(JdbcTemplate jdbcTemplate, String roleCode) {
         List<Long> roleIds = jdbcTemplate.query(
                 "SELECT id FROM sys_role WHERE role_code = ?",
-                new Object[]{roleCode},
-                (rs, rowNum) -> rs.getLong("id"));
+                (rs, rowNum) -> rs.getLong("id"),
+                roleCode
+            );
         if (roleIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "role not found: " + roleCode);
         }
@@ -165,8 +167,10 @@ public class SystemUserService {
                         "JOIN platform_subscription s ON t.id = s.tenant_id " +
                         "JOIN platform_plan_feature f ON s.plan_id = f.plan_id " +
                         "WHERE t.tenant_code = ? AND f.feature_key = ? ORDER BY s.id DESC LIMIT 1",
-                new Object[]{tenantCode, featureKey},
-                (rs, rowNum) -> rs.getString("feature_value"));
+                (rs, rowNum) -> rs.getString("feature_value"),
+                tenantCode,
+                featureKey
+            );
         if (values.isEmpty()) {
             return -1;
         }

@@ -35,8 +35,10 @@ public class FollowRecordService {
         return jdbcTemplate.query(
                 "SELECT id, related_type, related_id, content, next_follow_time, creator_user_id, create_time " +
                         "FROM crm_follow_record WHERE related_type = ? AND related_id = ? ORDER BY id DESC LIMIT 100",
-                new Object[]{normalizedType, relatedId},
-                (rs, rowNum) -> mapFollowRecord(rs));
+                (rs, rowNum) -> mapFollowRecord(rs),
+                normalizedType,
+                relatedId
+            );
     }
 
     @OperationLog(action = "FOLLOW_RECORD_CREATE", targetType = "crm_follow_record")
@@ -55,16 +57,21 @@ public class FollowRecordService {
                 request.getNextFollowTime() == null ? null : Timestamp.valueOf(request.getNextFollowTime()),
                 creatorUserId);
         Long id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        return getFollowRecord(id);
+        return getFollowRecord(jdbcTemplate, id);
     }
 
     private FollowRecordResponse getFollowRecord(Long id) {
+        return getFollowRecord(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id);
+    }
+
+    private FollowRecordResponse getFollowRecord(JdbcTemplate jdbcTemplate, Long id) {
         try {
-            return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
+            return jdbcTemplate.queryForObject(
                     "SELECT id, related_type, related_id, content, next_follow_time, creator_user_id, create_time " +
                             "FROM crm_follow_record WHERE id = ?",
-                    new Object[]{id},
-                    (rs, rowNum) -> mapFollowRecord(rs));
+                    (rs, rowNum) -> mapFollowRecord(rs),
+                    id
+                );
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "follow record not found", ex);
         }
@@ -93,7 +100,7 @@ public class FollowRecordService {
         } else {
             sql = "SELECT COUNT(1) FROM crm_deal WHERE id = ? AND status <> 'DELETED'";
         }
-        Integer count = jdbcTemplate.queryForObject(sql, new Object[]{relatedId}, Integer.class);
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, relatedId);
         if (count == null || count == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "related business object not found");
         }

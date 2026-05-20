@@ -46,7 +46,7 @@ public class DealService {
                 request.getExpectedCloseDate() == null ? null : Date.valueOf(request.getExpectedCloseDate()),
                 request.getOwnerUserId());
         Long id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        return getDeal(id);
+        return getDeal(jdbcTemplate, id);
     }
 
     public List<PipelineStageBoardResponse> board(Long pipelineId) {
@@ -56,7 +56,6 @@ public class DealService {
         jdbcTemplate.query(
                 "SELECT id, stage_name, win_probability, sort_order FROM crm_pipeline_stage " +
                         "WHERE pipeline_id = ? ORDER BY sort_order, id",
-                new Object[]{resolvedPipelineId},
                 rs -> {
                     PipelineStageBoardResponse stage = new PipelineStageBoardResponse();
                     stage.setStageId(rs.getLong("id"));
@@ -64,11 +63,12 @@ public class DealService {
                     stage.setWinProbability(rs.getInt("win_probability"));
                     stage.setSortOrder(rs.getInt("sort_order"));
                     stages.put(stage.getStageId(), stage);
-                });
+                },
+                resolvedPipelineId
+            );
         jdbcTemplate.query(
                 "SELECT id, deal_name, customer_id, pipeline_id, stage_id, amount_cent, expected_close_date, owner_user_id, status, create_time " +
                         "FROM crm_deal WHERE pipeline_id = ? AND status = 'OPEN' ORDER BY id DESC",
-                new Object[]{resolvedPipelineId},
                 rs -> {
                     DealResponse deal = mapDeal(rs);
                     PipelineStageBoardResponse stage = stages.get(deal.getStageId());
@@ -76,26 +76,33 @@ public class DealService {
                         stage.getDeals().add(deal);
                         stage.setTotalAmountCent(stage.getTotalAmountCent() + deal.getAmountCent());
                     }
-                });
+                },
+                resolvedPipelineId
+            );
         return new java.util.ArrayList<PipelineStageBoardResponse>(stages.values());
     }
 
     @OperationLog(action = "DEAL_MOVE_STAGE", targetType = "crm_deal", targetIdArg = 0)
     public DealResponse moveStage(Long id, Long stageId) {
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
-        DealResponse deal = getDeal(id);
+        DealResponse deal = getDeal(jdbcTemplate, id);
         assertStageBelongsToPipeline(jdbcTemplate, deal.getPipelineId(), stageId);
         jdbcTemplate.update("UPDATE crm_deal SET stage_id = ? WHERE id = ?", stageId, id);
-        return getDeal(id);
+        return getDeal(jdbcTemplate, id);
     }
 
     private DealResponse getDeal(Long id) {
+        return getDeal(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id);
+    }
+
+    private DealResponse getDeal(JdbcTemplate jdbcTemplate, Long id) {
         try {
-            return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
+            return jdbcTemplate.queryForObject(
                     "SELECT id, deal_name, customer_id, pipeline_id, stage_id, amount_cent, expected_close_date, owner_user_id, status, create_time " +
                             "FROM crm_deal WHERE id = ?",
-                    new Object[]{id},
-                    (rs, rowNum) -> mapDeal(rs));
+                    (rs, rowNum) -> mapDeal(rs),
+                    id
+                );
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "deal not found", ex);
         }
@@ -110,15 +117,18 @@ public class DealService {
     private Long firstStageId(JdbcTemplate jdbcTemplate, Long pipelineId) {
         return jdbcTemplate.queryForObject(
                 "SELECT id FROM crm_pipeline_stage WHERE pipeline_id = ? ORDER BY sort_order, id LIMIT 1",
-                new Object[]{pipelineId},
-                Long.class);
+                Long.class,
+                pipelineId
+            );
     }
 
     private void assertStageBelongsToPipeline(JdbcTemplate jdbcTemplate, Long pipelineId, Long stageId) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(1) FROM crm_pipeline_stage WHERE pipeline_id = ? AND id = ?",
-                new Object[]{pipelineId, stageId},
-                Integer.class);
+                Integer.class,
+                pipelineId,
+                stageId
+            );
         if (count == null || count == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "stage does not belong to pipeline");
         }

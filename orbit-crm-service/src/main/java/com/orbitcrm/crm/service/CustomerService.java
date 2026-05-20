@@ -55,14 +55,17 @@ public class CustomerService {
                 request.getAddress(),
                 request.getOwnerUserId());
         Long id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        return getCustomer(id);
+        return getCustomer(jdbcTemplate, id);
     }
 
     private CustomerResponse getCustomer(Long id) {
-        return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
+        return getCustomer(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id);
+    }
+
+    private CustomerResponse getCustomer(JdbcTemplate jdbcTemplate, Long id) {
+        return jdbcTemplate.queryForObject(
                 "SELECT id, customer_name, customer_type, phone, email, address, owner_user_id, status, create_time " +
                         "FROM crm_customer WHERE id = ?",
-                new Object[]{id},
                 (rs, rowNum) -> {
                     CustomerResponse response = new CustomerResponse();
                     response.setId(rs.getLong("id"));
@@ -75,7 +78,9 @@ public class CustomerService {
                     response.setStatus(rs.getString("status"));
                     response.setCreateTime(toLocalDateTime(rs.getTimestamp("create_time")));
                     return response;
-                });
+                },
+                id
+            );
     }
 
     private LocalDateTime toLocalDateTime(Timestamp timestamp) {

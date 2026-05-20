@@ -83,8 +83,9 @@ public class OpenApiKeyService {
             return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
                     "SELECT id, key_name, key_prefix, scopes, status, last_used_time, create_time " +
                             "FROM sys_openapi_key WHERE id = ?",
-                    new Object[]{id},
-                    (rs, rowNum) -> mapKey(rs));
+                    (rs, rowNum) -> mapKey(rs),
+                    id
+                );
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "openapi key not found", ex);
         }

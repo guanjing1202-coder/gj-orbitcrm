@@ -38,15 +38,17 @@ public class NoticeService {
                             "FROM sys_notice n JOIN sys_notice_receiver r ON n.id = r.notice_id " +
                             "WHERE n.status = 'ACTIVE' AND r.user_id = ? AND r.read_time IS NULL " +
                             "ORDER BY n.id DESC LIMIT 200",
-                    new Object[]{userId},
-                    (rs, rowNum) -> mapNotice(rs));
+                    (rs, rowNum) -> mapNotice(rs),
+                    userId
+                );
         }
         return jdbcTemplate.query(
                 "SELECT n.id, n.title, n.content, n.notice_type, n.sender_user_id, n.status, r.read_time, n.create_time " +
                         "FROM sys_notice n JOIN sys_notice_receiver r ON n.id = r.notice_id " +
                         "WHERE n.status = 'ACTIVE' AND r.user_id = ? ORDER BY n.id DESC LIMIT 200",
-                new Object[]{userId},
-                (rs, rowNum) -> mapNotice(rs));
+                (rs, rowNum) -> mapNotice(rs),
+                userId
+            );
     }
 
     public Integer unreadCount() {
@@ -54,8 +56,9 @@ public class NoticeService {
         Integer count = tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
                 "SELECT COUNT(1) FROM sys_notice n JOIN sys_notice_receiver r ON n.id = r.notice_id " +
                         "WHERE n.status = 'ACTIVE' AND r.user_id = ? AND r.read_time IS NULL",
-                new Object[]{userId},
-                Integer.class);
+                Integer.class,
+                userId
+            );
         return count == null ? 0 : count;
     }
 
@@ -134,8 +137,9 @@ public class NoticeService {
         List<NoticeResponse> notices = tenantJdbcTemplateProvider.currentTenantJdbcTemplate().query(
                 "SELECT id, title, content, notice_type, sender_user_id, status, NULL AS read_time, create_time " +
                         "FROM sys_notice WHERE id = ? AND status = 'ACTIVE'",
-                new Object[]{id},
-                (rs, rowNum) -> mapNotice(rs));
+                (rs, rowNum) -> mapNotice(rs),
+                id
+            );
         if (notices.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "notice not found");
         }
@@ -147,8 +151,10 @@ public class NoticeService {
                 "SELECT n.id, n.title, n.content, n.notice_type, n.sender_user_id, n.status, r.read_time, n.create_time " +
                         "FROM sys_notice n JOIN sys_notice_receiver r ON n.id = r.notice_id " +
                         "WHERE n.id = ? AND r.user_id = ? AND n.status = 'ACTIVE'",
-                new Object[]{id, userId},
-                (rs, rowNum) -> mapNotice(rs));
+                (rs, rowNum) -> mapNotice(rs),
+                id,
+                userId
+            );
         if (notices.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "notice not found");
         }
@@ -159,8 +165,10 @@ public class NoticeService {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(1) FROM sys_notice n JOIN sys_notice_receiver r ON n.id = r.notice_id " +
                         "WHERE n.id = ? AND r.user_id = ? AND n.status = 'ACTIVE'",
-                new Object[]{id, userId},
-                Integer.class);
+                Integer.class,
+                id,
+                userId
+            );
         if (count == null || count == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "notice not found");
         }

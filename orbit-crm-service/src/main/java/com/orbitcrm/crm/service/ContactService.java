@@ -33,8 +33,9 @@ public class ContactService {
             return jdbcTemplate.query(
                     "SELECT id, customer_id, contact_name, title, phone, email, is_primary, create_time " +
                             "FROM crm_contact WHERE customer_id = ? ORDER BY is_primary DESC, id DESC LIMIT 100",
-                    new Object[]{customerId},
-                    (rs, rowNum) -> mapContact(rs));
+                    (rs, rowNum) -> mapContact(rs),
+                    customerId
+                );
         }
         return jdbcTemplate.query(
                 "SELECT id, customer_id, contact_name, title, phone, email, is_primary, create_time " +
@@ -60,13 +61,13 @@ public class ContactService {
                 request.getEmail(),
                 primary ? 1 : 0);
         Long id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        return getContact(id);
+        return getContact(jdbcTemplate, id);
     }
 
     @OperationLog(action = "CONTACT_UPDATE", targetType = "crm_contact", targetIdArg = 0)
     public ContactResponse updateContact(Long id, ContactUpdateRequest request) {
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
-        ContactResponse contact = getContact(id);
+        ContactResponse contact = getContact(jdbcTemplate, id);
         List<Object> values = new ArrayList<Object>();
         StringBuilder sql = new StringBuilder("UPDATE crm_contact SET ");
         boolean hasUpdate = false;
@@ -99,25 +100,30 @@ public class ContactService {
         sql.append(" WHERE id = ?");
         values.add(id);
         jdbcTemplate.update(sql.toString(), values.toArray());
-        return getContact(id);
+        return getContact(jdbcTemplate, id);
     }
 
     @OperationLog(action = "CONTACT_SET_PRIMARY", targetType = "crm_contact", targetIdArg = 0)
     public ContactResponse setPrimary(Long id) {
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
-        ContactResponse contact = getContact(id);
+        ContactResponse contact = getContact(jdbcTemplate, id);
         clearPrimary(jdbcTemplate, contact.getCustomerId());
         jdbcTemplate.update("UPDATE crm_contact SET is_primary = 1 WHERE id = ?", id);
-        return getContact(id);
+        return getContact(jdbcTemplate, id);
     }
 
     private ContactResponse getContact(Long id) {
+        return getContact(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id);
+    }
+
+    private ContactResponse getContact(JdbcTemplate jdbcTemplate, Long id) {
         try {
-            return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
+            return jdbcTemplate.queryForObject(
                     "SELECT id, customer_id, contact_name, title, phone, email, is_primary, create_time " +
                             "FROM crm_contact WHERE id = ?",
-                    new Object[]{id},
-                    (rs, rowNum) -> mapContact(rs));
+                    (rs, rowNum) -> mapContact(rs),
+                    id
+                );
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "contact not found", ex);
         }
@@ -126,8 +132,9 @@ public class ContactService {
     private void assertCustomerExists(JdbcTemplate jdbcTemplate, Long customerId) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(1) FROM crm_customer WHERE id = ? AND status <> 'DELETED'",
-                new Object[]{customerId},
-                Integer.class);
+                Integer.class,
+                customerId
+            );
         if (count == null || count == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "customer not found");
         }

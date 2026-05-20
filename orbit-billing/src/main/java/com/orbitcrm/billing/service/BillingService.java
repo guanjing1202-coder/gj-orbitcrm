@@ -76,7 +76,6 @@ public class BillingService {
                         "JOIN platform_tenant t ON s.tenant_id = t.id " +
                         "JOIN platform_plan p ON s.plan_id = p.id " +
                         "WHERE t.tenant_code = ? ORDER BY s.id DESC LIMIT 1",
-                new Object[]{normalizedTenantCode},
                 (rs, rowNum) -> {
                     SubscriptionResponse response = new SubscriptionResponse();
                     response.setId(rs.getLong("id"));
@@ -89,7 +88,9 @@ public class BillingService {
                     response.setTrialEndTime(toLocalDateTime(rs.getTimestamp("trial_end_time")));
                     response.setGraceDays(rs.getInt("grace_days"));
                     return response;
-                });
+                },
+                normalizedTenantCode
+            );
         if (subscriptions.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "subscription not found");
         }
@@ -105,7 +106,6 @@ public class BillingService {
                         "JOIN platform_tenant t ON o.tenant_id = t.id " +
                         "LEFT JOIN platform_plan p ON o.plan_id = p.id " +
                         "WHERE t.tenant_code = ? ORDER BY o.id DESC LIMIT 100",
-                new Object[]{resolvedTenantCode},
                 (rs, rowNum) -> mapOrder(rs.getLong("id"),
                         rs.getString("order_no"),
                         rs.getString("tenant_code"),
@@ -117,7 +117,9 @@ public class BillingService {
                         rs.getLong("amount_cent"),
                         rs.getString("status"),
                         rs.getTimestamp("paid_time"),
-                        rs.getTimestamp("create_time")));
+                        rs.getTimestamp("create_time")),
+                resolvedTenantCode
+            );
     }
 
     @Transactional
@@ -224,7 +226,6 @@ public class BillingService {
                         "JOIN platform_tenant t ON o.tenant_id = t.id " +
                         "LEFT JOIN platform_plan p ON o.plan_id = p.id " +
                         "WHERE o.id = ?",
-                new Object[]{orderId},
                 (rs, rowNum) -> mapOrder(rs.getLong("id"),
                         rs.getString("order_no"),
                         rs.getString("tenant_code"),
@@ -236,7 +237,9 @@ public class BillingService {
                         rs.getLong("amount_cent"),
                         rs.getString("status"),
                         rs.getTimestamp("paid_time"),
-                        rs.getTimestamp("create_time")));
+                        rs.getTimestamp("create_time")),
+                orderId
+            );
         if (orders.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found");
         }
@@ -266,14 +269,15 @@ public class BillingService {
         List<PaymentResponse> payments = jdbcTemplate.query(
                 "SELECT id, order_id, payment_channel, payment_no, amount_cent, status, paid_time " +
                         "FROM platform_payment WHERE order_id = ? ORDER BY id DESC LIMIT 1",
-                new Object[]{orderId},
                 (rs, rowNum) -> mapPayment(rs.getLong("id"),
                         rs.getLong("order_id"),
                         rs.getString("payment_channel"),
                         rs.getString("payment_no"),
                         rs.getLong("amount_cent"),
                         rs.getString("status"),
-                        rs.getTimestamp("paid_time")));
+                        rs.getTimestamp("paid_time")),
+                orderId
+            );
         if (payments.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "payment not found");
         }
@@ -284,14 +288,15 @@ public class BillingService {
         return jdbcTemplate.queryForObject(
                 "SELECT id, order_id, payment_channel, payment_no, amount_cent, status, paid_time " +
                         "FROM platform_payment WHERE id = ?",
-                new Object[]{paymentId},
                 (rs, rowNum) -> mapPayment(rs.getLong("id"),
                         rs.getLong("order_id"),
                         rs.getString("payment_channel"),
                         rs.getString("payment_no"),
                         rs.getLong("amount_cent"),
                         rs.getString("status"),
-                        rs.getTimestamp("paid_time")));
+                        rs.getTimestamp("paid_time")),
+                paymentId
+            );
     }
 
     private PaymentResponse mapPayment(Long id, Long orderId, String paymentChannel, String paymentNo,
@@ -310,8 +315,9 @@ public class BillingService {
     private TenantRecord tenantRecord(String tenantCode) {
         List<TenantRecord> tenants = jdbcTemplate.query(
                 "SELECT id, tenant_code FROM platform_tenant WHERE tenant_code = ?",
-                new Object[]{tenantCode},
-                (rs, rowNum) -> new TenantRecord(rs.getLong("id"), rs.getString("tenant_code")));
+                (rs, rowNum) -> new TenantRecord(rs.getLong("id"), rs.getString("tenant_code")),
+                tenantCode
+            );
         if (tenants.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "tenant not found");
         }
@@ -322,12 +328,13 @@ public class BillingService {
         List<PlanRecord> plans = jdbcTemplate.query(
                 "SELECT id, plan_code, plan_name, billing_cycle, price_cent FROM platform_plan " +
                         "WHERE plan_code = ? AND status = 'ACTIVE'",
-                new Object[]{planCode},
                 (rs, rowNum) -> new PlanRecord(rs.getLong("id"),
                         rs.getString("plan_code"),
                         rs.getString("plan_name"),
                         rs.getString("billing_cycle"),
-                        rs.getLong("price_cent")));
+                        rs.getLong("price_cent")),
+                planCode
+            );
         if (plans.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "plan not found");
         }
@@ -338,24 +345,26 @@ public class BillingService {
         List<SubscriptionRecord> subscriptions = jdbcTemplate.query(
                 "SELECT id, tenant_id, plan_id, status, end_time FROM platform_subscription " +
                         "WHERE tenant_id = ? ORDER BY id DESC LIMIT 1",
-                new Object[]{tenantId},
                 (rs, rowNum) -> new SubscriptionRecord(rs.getLong("id"),
                         rs.getLong("tenant_id"),
                         rs.getLong("plan_id"),
                         rs.getString("status"),
-                        toLocalDateTime(rs.getTimestamp("end_time"))));
+                        toLocalDateTime(rs.getTimestamp("end_time"))),
+                tenantId
+            );
         return subscriptions.isEmpty() ? null : subscriptions.get(0);
     }
 
     private SubscriptionRecord subscriptionRecord(Long subscriptionId) {
         List<SubscriptionRecord> subscriptions = jdbcTemplate.query(
                 "SELECT id, tenant_id, plan_id, status, end_time FROM platform_subscription WHERE id = ?",
-                new Object[]{subscriptionId},
                 (rs, rowNum) -> new SubscriptionRecord(rs.getLong("id"),
                         rs.getLong("tenant_id"),
                         rs.getLong("plan_id"),
                         rs.getString("status"),
-                        toLocalDateTime(rs.getTimestamp("end_time"))));
+                        toLocalDateTime(rs.getTimestamp("end_time"))),
+                subscriptionId
+            );
         if (subscriptions.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "subscription not found");
         }
@@ -366,7 +375,6 @@ public class BillingService {
         List<OrderRecord> orders = jdbcTemplate.query(
                 "SELECT id, tenant_id, subscription_id, plan_id, order_type, period_months, amount_cent, status " +
                         "FROM platform_order WHERE id = ?",
-                new Object[]{orderId},
                 (rs, rowNum) -> new OrderRecord(rs.getLong("id"),
                         rs.getLong("tenant_id"),
                         longOrNull(rs.getObject("subscription_id")),
@@ -374,7 +382,9 @@ public class BillingService {
                         rs.getString("order_type"),
                         rs.getInt("period_months"),
                         rs.getLong("amount_cent"),
-                        rs.getString("status")));
+                        rs.getString("status")),
+                orderId
+            );
         if (orders.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found");
         }
