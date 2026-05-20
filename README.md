@@ -325,7 +325,9 @@ gj-orbitcrm
 - 商机数量
 - 任务数量
 - 线索状态分布
+- 商机状态分布
 - 销售漏斗统计
+- 销售漏斗阶段金额与商机数
 - 任务状态统计
 - 面向租户工作台的数据概览接口
 
@@ -535,6 +537,10 @@ PATCH  /api/tasks/{id}/restore               恢复任务
 POST   /api/tasks/reminders/dispatch         手动触发提醒
 
 GET    /api/reports/dashboard/summary        Dashboard 汇总
+GET    /api/reports/dashboard/lead-status    线索状态分布
+GET    /api/reports/dashboard/deal-status    商机状态分布
+GET    /api/reports/dashboard/task-status    任务状态分布
+GET    /api/reports/dashboard/deal-funnel    销售漏斗明细
 
 GET    /api/files                            文件列表
 POST   /api/files                            上传文件

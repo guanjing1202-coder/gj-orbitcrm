@@ -11,6 +11,8 @@ public class DashboardSummaryResponse {
     private Integer todayTaskCount;
     private Integer overdueTaskCount;
     private List<NameValueResponse> leadStatus = new ArrayList<NameValueResponse>();
+    private List<NameValueResponse> dealStatus = new ArrayList<NameValueResponse>();
+    private List<NameValueResponse> taskStatus = new ArrayList<NameValueResponse>();
     private List<NameValueResponse> dealFunnel = new ArrayList<NameValueResponse>();
 
     public Integer getLeadCount() {
@@ -67,6 +69,22 @@ public class DashboardSummaryResponse {
 
     public void setLeadStatus(List<NameValueResponse> leadStatus) {
         this.leadStatus = leadStatus;
+    }
+
+    public List<NameValueResponse> getDealStatus() {
+        return dealStatus;
+    }
+
+    public void setDealStatus(List<NameValueResponse> dealStatus) {
+        this.dealStatus = dealStatus;
+    }
+
+    public List<NameValueResponse> getTaskStatus() {
+        return taskStatus;
+    }
+
+    public void setTaskStatus(List<NameValueResponse> taskStatus) {
+        this.taskStatus = taskStatus;
     }
 
     public List<NameValueResponse> getDealFunnel() {
