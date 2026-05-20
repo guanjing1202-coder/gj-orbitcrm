@@ -297,13 +297,22 @@ gj-orbitcrm
 ### 6. 任务与提醒
 
 - 任务列表
+- 任务详情
 - 新增任务
+- 编辑任务
+- 分配任务负责人
 - 完成任务
+- 重开任务
+- 取消任务
+- 任务软删除
+- 任务回收站
+- 恢复已删除任务
 - 关联客户、线索或商机
 - 负责人
 - 截止时间
 - 提醒时间
 - 提醒状态
+- 按状态、负责人、关联对象筛选任务
 - 定时扫描待提醒任务
 - RabbitMQ 发布任务提醒消息
 - 手动触发提醒扫描接口
@@ -513,8 +522,16 @@ POST   /api/crm/pipelines/{id}/stages        创建阶段
 PATCH  /api/crm/pipelines/stages/{stageId}   编辑阶段
 
 GET    /api/tasks                            任务列表
+GET    /api/tasks/deleted                    任务回收站
+GET    /api/tasks/{id}                       任务详情
 POST   /api/tasks                            创建任务
+PATCH  /api/tasks/{id}                       编辑任务
+PATCH  /api/tasks/{id}/assignee              分配任务负责人
 PATCH  /api/tasks/{id}/complete              完成任务
+PATCH  /api/tasks/{id}/reopen                重开任务
+PATCH  /api/tasks/{id}/cancel                取消任务
+DELETE /api/tasks/{id}                       删除任务
+PATCH  /api/tasks/{id}/restore               恢复任务
 POST   /api/tasks/reminders/dispatch         手动触发提醒
 
 GET    /api/reports/dashboard/summary        Dashboard 汇总
