@@ -234,6 +234,10 @@ gj-orbitcrm
 - 新增联系人
 - 编辑联系人
 - 设置主联系人
+- 客户标签列表
+- 新增标签
+- 替换客户标签
+- 单个添加或移除客户标签
 
 商机管理：
 
@@ -438,6 +442,12 @@ GET    /api/crm/contacts                     联系人列表
 POST   /api/crm/contacts                     创建联系人
 PATCH  /api/crm/contacts/{id}                编辑联系人
 PATCH  /api/crm/contacts/{id}/primary        设置主联系人
+GET    /api/crm/tags                         标签列表
+POST   /api/crm/tags                         创建标签
+GET    /api/crm/customers/{id}/tags          客户标签列表
+PUT    /api/crm/customers/{id}/tags          替换客户标签
+POST   /api/crm/customers/{id}/tags/{tagId}  添加客户标签
+DELETE /api/crm/customers/{id}/tags/{tagId}  移除客户标签
 
 GET    /api/crm/follow-records               跟进记录列表
 POST   /api/crm/follow-records               创建跟进记录
