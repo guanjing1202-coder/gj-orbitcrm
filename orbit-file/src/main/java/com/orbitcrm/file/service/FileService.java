@@ -7,6 +7,7 @@ import com.orbitcrm.common.security.CurrentUser;
 import com.orbitcrm.common.security.CurrentUserContext;
 import com.orbitcrm.file.api.FileDownloadResource;
 import com.orbitcrm.file.api.FileResponse;
+import com.orbitcrm.file.api.FileUsageResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -63,6 +64,30 @@ public class FileService {
                 (rs, rowNum) -> mapFile(rs));
     }
 
+    public List<FileResponse> listDeletedFiles() {
+        return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().query(
+                "SELECT id, biz_type, biz_id, bucket_name, object_key, original_name, content_type, " +
+                        "size_bytes, uploader_user_id, status, create_time FROM sys_file " +
+                        "WHERE status = 'DELETED' ORDER BY id DESC LIMIT 200",
+                (rs, rowNum) -> mapFile(rs));
+    }
+
+    public FileUsageResponse usage() {
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        Long usedBytes = activeUsedBytes(jdbcTemplate);
+        Integer activeFileCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM sys_file WHERE status = 'ACTIVE'",
+                Integer.class);
+        long quotaBytes = storageQuotaBytes();
+        FileUsageResponse response = new FileUsageResponse();
+        response.setUsedBytes(usedBytes);
+        response.setQuotaBytes(quotaBytes);
+        response.setUnlimited(quotaBytes < 0);
+        response.setRemainingBytes(quotaBytes < 0 ? -1L : Math.max(0L, quotaBytes - usedBytes));
+        response.setActiveFileCount(activeFileCount == null ? 0 : activeFileCount);
+        return response;
+    }
+
     @OperationLog(action = "FILE_UPLOAD", targetType = "sys_file")
     public FileResponse uploadFile(MultipartFile file, String bizType, Long bizId) {
         if (file == null || file.isEmpty()) {
@@ -71,7 +96,8 @@ public class FileService {
         if (file.getSize() > maxUploadBytes) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is too large");
         }
-        assertStorageQuotaAvailable(file.getSize());
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        assertStorageQuotaAvailable(jdbcTemplate, file.getSize());
 
         String tenantCode = requireTenantCode();
         String bucketName = bucketName(tenantCode);
@@ -86,7 +112,6 @@ public class FileService {
             throw new IllegalStateException("failed to read upload file", ex);
         }
 
-        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         Long uploaderUserId = currentUserId();
         jdbcTemplate.update(
                 "INSERT INTO sys_file (biz_type, biz_id, bucket_name, object_key, original_name, content_type, size_bytes, uploader_user_id, status) " +
@@ -100,7 +125,11 @@ public class FileService {
                 file.getSize(),
                 uploaderUserId);
         Long id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        return getFile(id);
+        return getFile(jdbcTemplate, id);
+    }
+
+    public FileResponse getFile(Long id) {
+        return getFile(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id);
     }
 
     public FileDownloadResource downloadFile(Long id) {
@@ -114,17 +143,50 @@ public class FileService {
 
     @OperationLog(action = "FILE_DELETE", targetType = "sys_file", targetIdArg = 0)
     public FileResponse deleteFile(Long id) {
-        FileResponse file = getFile(id);
-        tenantJdbcTemplateProvider.currentTenantJdbcTemplate().update(
-                "UPDATE sys_file SET status = 'DELETED' WHERE id = ?",
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        int updated = jdbcTemplate.update(
+                "UPDATE sys_file SET status = 'DELETED' WHERE id = ? AND status = 'ACTIVE'",
                 id);
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "file not found");
+        }
+        return getFileIncludingDeleted(jdbcTemplate, id);
+    }
+
+    @OperationLog(action = "FILE_RESTORE", targetType = "sys_file", targetIdArg = 0)
+    public FileResponse restoreFile(Long id) {
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        FileResponse file = getFileIncludingDeleted(jdbcTemplate, id);
+        if (!"DELETED".equals(file.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "deleted file not found");
+        }
+        assertStorageQuotaAvailable(jdbcTemplate, file.getSizeBytes());
+        jdbcTemplate.update(
+                "UPDATE sys_file SET status = 'ACTIVE' WHERE id = ? AND status = 'DELETED'",
+                id);
+        return getFile(jdbcTemplate, id);
+    }
+
+    @OperationLog(action = "FILE_PURGE", targetType = "sys_file", targetIdArg = 0)
+    public FileResponse purgeFile(Long id) {
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        FileResponse file = getFileIncludingDeleted(jdbcTemplate, id);
+        if (!"DELETED".equals(file.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "deleted file not found");
+        }
+        int updated = jdbcTemplate.update(
+                "UPDATE sys_file SET status = 'PURGED' WHERE id = ? AND status = 'DELETED'",
+                id);
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "deleted file not found");
+        }
         minioStorageService.removeObject(file.getBucketName(), file.getObjectKey());
-        file.setStatus("DELETED");
+        file.setStatus("PURGED");
         return file;
     }
 
-    private FileResponse getFile(Long id) {
-        List<FileResponse> files = tenantJdbcTemplateProvider.currentTenantJdbcTemplate().query(
+    private FileResponse getFile(JdbcTemplate jdbcTemplate, Long id) {
+        List<FileResponse> files = jdbcTemplate.query(
                 "SELECT id, biz_type, biz_id, bucket_name, object_key, original_name, content_type, " +
                         "size_bytes, uploader_user_id, status, create_time FROM sys_file " +
                         "WHERE id = ? AND status = 'ACTIVE'",
@@ -137,18 +199,36 @@ public class FileService {
         return files.get(0);
     }
 
-    private void assertStorageQuotaAvailable(long incomingBytes) {
+    private FileResponse getFileIncludingDeleted(JdbcTemplate jdbcTemplate, Long id) {
+        List<FileResponse> files = jdbcTemplate.query(
+                "SELECT id, biz_type, biz_id, bucket_name, object_key, original_name, content_type, " +
+                        "size_bytes, uploader_user_id, status, create_time FROM sys_file " +
+                        "WHERE id = ? AND status <> 'PURGED'",
+                (rs, rowNum) -> mapFile(rs),
+                id
+            );
+        if (files.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "file not found");
+        }
+        return files.get(0);
+    }
+
+    private void assertStorageQuotaAvailable(JdbcTemplate jdbcTemplate, long incomingBytes) {
         long quotaBytes = storageQuotaBytes();
         if (quotaBytes < 0) {
             return;
         }
-        Long usedBytes = tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
-                "SELECT COALESCE(SUM(size_bytes), 0) FROM sys_file WHERE status = 'ACTIVE'",
-                Long.class);
-        long used = usedBytes == null ? 0L : usedBytes;
+        long used = activeUsedBytes(jdbcTemplate);
         if (used + incomingBytes > quotaBytes) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "file storage quota exceeded");
         }
+    }
+
+    private long activeUsedBytes(JdbcTemplate jdbcTemplate) {
+        Long usedBytes = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(SUM(size_bytes), 0) FROM sys_file WHERE status = 'ACTIVE'",
+                Long.class);
+        return usedBytes == null ? 0L : usedBytes;
     }
 
     private long storageQuotaBytes() {

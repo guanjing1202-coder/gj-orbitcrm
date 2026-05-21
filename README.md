@@ -336,8 +336,14 @@ gj-orbitcrm
 ### 8. 文件服务
 
 - 文件上传
+- 文件列表
+- 文件详情
 - 文件下载
 - 文件软删除
+- 文件回收站
+- 文件恢复
+- 文件永久删除
+- 文件存储用量统计
 - 业务对象关联
 - 文件元数据保存到租户库
 - MinIO 对象存储
@@ -545,9 +551,14 @@ GET    /api/reports/dashboard/task-status    任务状态分布
 GET    /api/reports/dashboard/deal-funnel    销售漏斗明细
 
 GET    /api/files                            文件列表
+GET    /api/files/deleted                    文件回收站
+GET    /api/files/usage                      文件存储用量
+GET    /api/files/{id}                       文件详情
 POST   /api/files                            上传文件
 GET    /api/files/{id}/download              下载文件
 DELETE /api/files/{id}                       删除文件
+PATCH  /api/files/{id}/restore               恢复文件
+DELETE /api/files/{id}/purge                 永久删除文件
 
 GET    /api/messages/notices/mine            我的通知
 GET    /api/messages/notices/mine/unread-count 未读数量

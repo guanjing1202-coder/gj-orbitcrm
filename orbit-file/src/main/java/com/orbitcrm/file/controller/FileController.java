@@ -4,6 +4,7 @@ import com.orbitcrm.common.core.api.ApiResult;
 import com.orbitcrm.common.security.RequiresPermission;
 import com.orbitcrm.file.api.FileDownloadResource;
 import com.orbitcrm.file.api.FileResponse;
+import com.orbitcrm.file.api.FileUsageResponse;
 import com.orbitcrm.file.service.FileService;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
@@ -11,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,6 +41,24 @@ public class FileController {
         return ApiResult.ok(fileService.listFiles(bizType, bizId));
     }
 
+    @GetMapping("/deleted")
+    @RequiresPermission("file:manage")
+    public ApiResult<List<FileResponse>> listDeletedFiles() {
+        return ApiResult.ok(fileService.listDeletedFiles());
+    }
+
+    @GetMapping("/usage")
+    @RequiresPermission("file:manage")
+    public ApiResult<FileUsageResponse> usage() {
+        return ApiResult.ok(fileService.usage());
+    }
+
+    @GetMapping("/{id}")
+    @RequiresPermission("file:manage")
+    public ApiResult<FileResponse> getFile(@PathVariable("id") Long id) {
+        return ApiResult.ok(fileService.getFile(id));
+    }
+
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @RequiresPermission("file:manage")
     public ApiResult<FileResponse> uploadFile(@RequestParam("file") MultipartFile file,
@@ -62,6 +82,18 @@ public class FileController {
     @RequiresPermission("file:manage")
     public ApiResult<FileResponse> deleteFile(@PathVariable("id") Long id) {
         return ApiResult.ok(fileService.deleteFile(id));
+    }
+
+    @PatchMapping("/{id}/restore")
+    @RequiresPermission("file:manage")
+    public ApiResult<FileResponse> restoreFile(@PathVariable("id") Long id) {
+        return ApiResult.ok(fileService.restoreFile(id));
+    }
+
+    @DeleteMapping("/{id}/purge")
+    @RequiresPermission("file:manage")
+    public ApiResult<FileResponse> purgeFile(@PathVariable("id") Long id) {
+        return ApiResult.ok(fileService.purgeFile(id));
     }
 
     private String contentDisposition(String filename) {
