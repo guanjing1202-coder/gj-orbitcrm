@@ -196,6 +196,8 @@ gj-orbitcrm
 - 租户级角色包括 `Tenant Admin`、`Sales Manager`、`Sales`、`Viewer`
 - 支持用户、角色、权限关系表
 - 支持登录日志和操作日志
+- 支持按动作、用户、对象和时间范围检索操作日志
+- 支持操作动作统计，便于审计和运营分析
 
 ### 4. 套餐订阅与计费
 
@@ -560,6 +562,7 @@ GET    /api/system/roles                     角色列表
 POST   /api/system/roles                     创建角色
 GET    /api/system/permissions               权限列表
 GET    /api/system/operation-logs            操作日志
+GET    /api/system/operation-logs/action-stats 操作动作统计
 
 GET    /api/openapi/keys                     OpenAPI Key 列表
 POST   /api/openapi/keys                     创建 OpenAPI Key
