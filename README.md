@@ -205,8 +205,11 @@ gj-orbitcrm
 - 套餐功能通过 `platform_plan_feature` 配置，不写死在代码里
 - 支持最大用户数、最大客户数、最大线索数、文件空间、自定义域名等限制
 - 支持创建订单
+- 支持订单详情查询
+- 支持取消未支付订单
 - 支持支付确认
 - 支持续费和套餐变更
+- 支持取消订阅和恢复未到期订阅
 - 支持试用期
 - 支持订阅状态：`TRIAL`、`ACTIVE`、`PAST_DUE`、`EXPIRED`、`CANCELED`、`FROZEN`
 - 定时扫描过期订阅
@@ -482,8 +485,12 @@ POST   /api/auth/login                       租户登录
 
 GET    /api/billing/plans                    套餐列表
 GET    /api/billing/subscriptions/current    当前订阅
+PATCH  /api/billing/subscriptions/current/cancel 取消当前订阅
+PATCH  /api/billing/subscriptions/current/resume 恢复当前订阅
 GET    /api/billing/orders                   订单列表
+GET    /api/billing/orders/{id}              订单详情
 POST   /api/billing/orders                   创建订单
+PATCH  /api/billing/orders/{id}/cancel       取消未支付订单
 POST   /api/billing/orders/{id}/payments     支付确认
 
 GET    /api/crm/leads                        线索列表

@@ -97,6 +97,55 @@ public class BillingService {
         return subscriptions.get(0);
     }
 
+    @Transactional
+    @OperationLog(action = "BILLING_SUBSCRIPTION_CANCEL", targetType = "platform_subscription")
+    public SubscriptionResponse cancelCurrentSubscription(String tenantCode) {
+        String normalizedTenantCode = normalizeTenantCode(tenantCode);
+        TenantRecord tenant = tenantRecord(normalizedTenantCode);
+        SubscriptionRecord subscription = latestSubscription(tenant.getId());
+        if (subscription == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "subscription not found");
+        }
+        if ("CANCELED".equals(subscription.getStatus())) {
+            return currentSubscription(normalizedTenantCode);
+        }
+        if (!"TRIAL".equals(subscription.getStatus())
+                && !"ACTIVE".equals(subscription.getStatus())
+                && !"PAST_DUE".equals(subscription.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "subscription cannot be canceled");
+        }
+        jdbcTemplate.update(
+                "UPDATE platform_subscription SET status = 'CANCELED' " +
+                        "WHERE id = ? AND status IN ('TRIAL', 'ACTIVE', 'PAST_DUE')",
+                subscription.getId());
+        return currentSubscription(normalizedTenantCode);
+    }
+
+    @Transactional
+    @OperationLog(action = "BILLING_SUBSCRIPTION_RESUME", targetType = "platform_subscription")
+    public SubscriptionResponse resumeCurrentSubscription(String tenantCode) {
+        String normalizedTenantCode = normalizeTenantCode(tenantCode);
+        TenantRecord tenant = tenantRecord(normalizedTenantCode);
+        SubscriptionRecord subscription = latestSubscription(tenant.getId());
+        if (subscription == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "subscription not found");
+        }
+        if ("TRIAL".equals(subscription.getStatus()) || "ACTIVE".equals(subscription.getStatus())) {
+            return currentSubscription(normalizedTenantCode);
+        }
+        if (!"CANCELED".equals(subscription.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "subscription cannot be resumed");
+        }
+        int updated = jdbcTemplate.update(
+                "UPDATE platform_subscription SET status = 'ACTIVE', trial_end_time = NULL " +
+                        "WHERE id = ? AND status = 'CANCELED' AND end_time >= NOW()",
+                subscription.getId());
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "subscription has expired; create a renewal order");
+        }
+        return currentSubscription(normalizedTenantCode);
+    }
+
     public List<BillingOrderResponse> listOrders(String tenantCode) {
         String resolvedTenantCode = resolveTenantCode(tenantCode);
         return jdbcTemplate.query(
@@ -150,11 +199,30 @@ public class BillingService {
     }
 
     @Transactional
+    @OperationLog(action = "BILLING_ORDER_CANCEL", targetType = "platform_order", targetIdArg = 0)
+    public BillingOrderResponse cancelOrder(Long orderId) {
+        OrderRecord order = orderRecord(orderId);
+        if ("CANCELED".equals(order.getStatus())) {
+            return getOrder(orderId);
+        }
+        if (!"UNPAID".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "only unpaid orders can be canceled");
+        }
+        jdbcTemplate.update(
+                "UPDATE platform_order SET status = 'CANCELED' WHERE id = ? AND status = 'UNPAID'",
+                orderId);
+        return getOrder(orderId);
+    }
+
+    @Transactional
     @OperationLog(action = "BILLING_PAYMENT_CONFIRM", targetType = "platform_order", targetIdArg = 0)
     public PaymentResponse confirmPayment(Long orderId, PaymentConfirmRequest request) {
         OrderRecord order = orderRecord(orderId);
         if ("PAID".equals(order.getStatus())) {
             return latestPayment(orderId);
+        }
+        if (!"UNPAID".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "order is not payable");
         }
         Long paidAmount = request.getAmountCent() == null ? order.getAmountCent() : request.getAmountCent();
         if (!paidAmount.equals(order.getAmountCent())) {
@@ -218,7 +286,7 @@ public class BillingService {
         jdbcTemplate.update("UPDATE platform_tenant SET status = 'ACTIVE' WHERE id = ?", order.getTenantId());
     }
 
-    private BillingOrderResponse getOrder(Long orderId) {
+    public BillingOrderResponse getOrder(Long orderId) {
         List<BillingOrderResponse> orders = jdbcTemplate.query(
                 "SELECT o.id, o.order_no, t.tenant_code, o.subscription_id, p.plan_code, p.plan_name, " +
                         "o.order_type, o.period_months, o.amount_cent, o.status, o.paid_time, o.create_time " +
