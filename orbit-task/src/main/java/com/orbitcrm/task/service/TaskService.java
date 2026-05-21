@@ -126,6 +126,9 @@ public class TaskService {
 
     @OperationLog(action = "TASK_ASSIGN", targetType = "crm_task", targetIdArg = 0)
     public TaskResponse assignTask(Long id, Long assigneeUserId) {
+        if (assigneeUserId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "assigneeUserId is required");
+        }
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         int updated = jdbcTemplate.update(
                 "UPDATE crm_task SET assignee_user_id = ? WHERE id = ? AND status <> 'DELETED'",

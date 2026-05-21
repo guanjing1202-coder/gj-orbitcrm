@@ -33,7 +33,7 @@ class OperationLogServiceTest {
         LocalDateTime endTime = LocalDateTime.of(2026, 5, 21, 23, 59);
 
         when(tenantJdbcTemplateProvider.currentTenantJdbcTemplate()).thenReturn(tenantJdbcTemplate);
-        when(tenantJdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
+        when(tenantJdbcTemplate.query(anyString(), any(RowMapper.class), any()))
                 .thenAnswer(invocation -> {
                     RowMapper mapper = invocation.getArgument(1);
                     ResultSet resultSet = mock(ResultSet.class);
@@ -69,7 +69,7 @@ class OperationLogServiceTest {
                         "AND target_type = ? AND target_id = ? AND create_time >= ? AND create_time <= ? " +
                         "ORDER BY id DESC LIMIT 500"),
                 any(RowMapper.class),
-                any(Object[].class));
+                any());
     }
 
     @Test
@@ -81,7 +81,7 @@ class OperationLogServiceTest {
         LocalDateTime startTime = LocalDateTime.of(2026, 5, 21, 0, 0);
 
         when(tenantJdbcTemplateProvider.currentTenantJdbcTemplate()).thenReturn(tenantJdbcTemplate);
-        when(tenantJdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
+        when(tenantJdbcTemplate.query(anyString(), any(RowMapper.class), any()))
                 .thenAnswer(invocation -> {
                     RowMapper mapper = invocation.getArgument(1);
                     ResultSet resultSet = mock(ResultSet.class);
@@ -103,6 +103,6 @@ class OperationLogServiceTest {
                         "FROM sys_operation_log WHERE 1 = 1 AND create_time >= ? " +
                         "GROUP BY action ORDER BY total DESC, action LIMIT 20"),
                 any(RowMapper.class),
-                any(Object[].class));
+                any());
     }
 }

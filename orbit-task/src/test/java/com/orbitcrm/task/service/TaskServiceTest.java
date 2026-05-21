@@ -5,8 +5,10 @@ import com.orbitcrm.task.api.TaskCreateRequest;
 import com.orbitcrm.task.api.TaskResponse;
 import com.orbitcrm.task.api.TaskUpdateRequest;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -14,6 +16,7 @@ import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -132,6 +135,19 @@ class TaskServiceTest {
                 "UPDATE crm_task SET status = 'DONE' WHERE id = ? AND status <> 'DELETED' AND status <> 'DONE'",
                 33L);
         verifyNoInteractions(refreshedJdbcTemplate);
+    }
+
+    @Test
+    void assignTaskRejectsMissingAssigneeBeforeUpdatingTask() {
+        TenantJdbcTemplateProvider tenantJdbcTemplateProvider = mock(TenantJdbcTemplateProvider.class);
+        TaskService service = new TaskService(tenantJdbcTemplateProvider, 30);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.assignTask(33L, null));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(tenantJdbcTemplateProvider);
     }
 
     private TaskResponse mapTask(RowMapper<TaskResponse> mapper,

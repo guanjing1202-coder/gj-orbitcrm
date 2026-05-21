@@ -5,8 +5,10 @@ import com.orbitcrm.crm.api.CustomerTagAssignRequest;
 import com.orbitcrm.crm.api.TagCreateRequest;
 import com.orbitcrm.crm.api.TagResponse;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -16,9 +18,11 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -123,5 +127,49 @@ class TagServiceTest {
                 66L,
                 5L);
         verifyNoInteractions(refreshedJdbcTemplate);
+    }
+
+    @Test
+    void addCustomerTagRejectsMissingTagIdBeforeWritingRelation() {
+        TenantJdbcTemplateProvider tenantJdbcTemplateProvider = mock(TenantJdbcTemplateProvider.class);
+        JdbcTemplate tenantJdbcTemplate = mock(JdbcTemplate.class);
+        TagService service = new TagService(tenantJdbcTemplateProvider);
+
+        when(tenantJdbcTemplateProvider.currentTenantJdbcTemplate()).thenReturn(tenantJdbcTemplate);
+        when(tenantJdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM crm_customer WHERE id = ? AND status <> 'DELETED'",
+                Integer.class,
+                66L)).thenReturn(1);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.addCustomerTag(66L, null));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verify(tenantJdbcTemplate, never()).update(
+                "INSERT IGNORE INTO crm_customer_tag (customer_id, tag_id) VALUES (?, ?)",
+                66L,
+                null);
+    }
+
+    @Test
+    void removeCustomerTagRejectsMissingTagIdBeforeDeletingRelation() {
+        TenantJdbcTemplateProvider tenantJdbcTemplateProvider = mock(TenantJdbcTemplateProvider.class);
+        JdbcTemplate tenantJdbcTemplate = mock(JdbcTemplate.class);
+        TagService service = new TagService(tenantJdbcTemplateProvider);
+
+        when(tenantJdbcTemplateProvider.currentTenantJdbcTemplate()).thenReturn(tenantJdbcTemplate);
+        when(tenantJdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM crm_customer WHERE id = ? AND status <> 'DELETED'",
+                Integer.class,
+                66L)).thenReturn(1);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.removeCustomerTag(66L, null));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verify(tenantJdbcTemplate, never()).update(
+                "DELETE FROM crm_customer_tag WHERE customer_id = ? AND tag_id = ?",
+                66L,
+                null);
     }
 }

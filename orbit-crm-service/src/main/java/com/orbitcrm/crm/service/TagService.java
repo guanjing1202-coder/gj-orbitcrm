@@ -84,10 +84,11 @@ public class TagService {
     public List<TagResponse> removeCustomerTag(Long customerId, Long tagId) {
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         assertCustomerExists(jdbcTemplate, customerId);
+        Long existingTagId = singleTagId(tagId).get(0);
         jdbcTemplate.update(
                 "DELETE FROM crm_customer_tag WHERE customer_id = ? AND tag_id = ?",
                 customerId,
-                tagId);
+                existingTagId);
         return listCustomerTags(jdbcTemplate, customerId);
     }
 
@@ -147,10 +148,11 @@ public class TagService {
     }
 
     private List<Long> singleTagId(Long tagId) {
-        List<Long> tagIds = new ArrayList<Long>();
-        if (tagId != null) {
-            tagIds.add(tagId);
+        if (tagId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tagId is required");
         }
+        List<Long> tagIds = new ArrayList<Long>();
+        tagIds.add(tagId);
         return tagIds;
     }
 
