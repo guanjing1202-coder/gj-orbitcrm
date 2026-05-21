@@ -1,7 +1,7 @@
 package com.orbitcrm.message.service;
 
-import com.orbitcrm.common.core.tenant.TenantContext;
 import com.orbitcrm.common.core.message.NoticeEvent;
+import com.orbitcrm.common.core.tenant.TenantContext;
 import com.orbitcrm.common.datasource.TenantJdbcTemplateProvider;
 import com.orbitcrm.common.log.OperationLog;
 import com.orbitcrm.common.security.CurrentUser;
@@ -18,7 +18,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -27,6 +26,26 @@ public class NoticeService {
 
     public NoticeService(TenantJdbcTemplateProvider tenantJdbcTemplateProvider) {
         this.tenantJdbcTemplateProvider = tenantJdbcTemplateProvider;
+    }
+
+    public List<NoticeResponse> listNotices(String status, String noticeType, Integer limit) {
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        StringBuilder sql = new StringBuilder(
+                "SELECT id, title, content, notice_type, sender_user_id, status, NULL AS read_time, create_time " +
+                        "FROM sys_notice WHERE 1 = 1");
+        java.util.List<Object> values = new java.util.ArrayList<Object>();
+        if (StringUtils.hasText(status)) {
+            sql.append(" AND status = ?");
+            values.add(status);
+        } else {
+            sql.append(" AND status <> 'DELETED'");
+        }
+        if (StringUtils.hasText(noticeType)) {
+            sql.append(" AND notice_type = ?");
+            values.add(noticeType);
+        }
+        sql.append(" ORDER BY id DESC LIMIT ").append(safeLimit(limit));
+        return jdbcTemplate.query(sql.toString(), (rs, rowNum) -> mapNotice(rs), values.toArray());
     }
 
     public List<NoticeResponse> listMyNotices(Boolean unreadOnly) {
@@ -84,6 +103,15 @@ public class NoticeService {
         }
     }
 
+    public NoticeResponse getNotice(Long id) {
+        return getNotice(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id);
+    }
+
+    public NoticeResponse getMyNotice(Long id) {
+        Long userId = CurrentUserContext.require().getUserId();
+        return getMyNotice(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id, userId);
+    }
+
     @OperationLog(action = "NOTICE_READ", targetType = "sys_notice", targetIdArg = 0)
     public NoticeResponse markRead(Long id) {
         Long userId = CurrentUserContext.require().getUserId();
@@ -95,7 +123,42 @@ public class NoticeService {
         if (updated == 0) {
             ensureNoticeVisibleToUser(jdbcTemplate, id, userId);
         }
-        return getMyNotice(id, userId);
+        return getMyNotice(jdbcTemplate, id, userId);
+    }
+
+    @OperationLog(action = "NOTICE_UNREAD", targetType = "sys_notice", targetIdArg = 0)
+    public NoticeResponse markUnread(Long id) {
+        Long userId = CurrentUserContext.require().getUserId();
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        int updated = jdbcTemplate.update(
+                "UPDATE sys_notice_receiver SET read_time = NULL WHERE notice_id = ? AND user_id = ? AND read_time IS NOT NULL",
+                id,
+                userId);
+        if (updated == 0) {
+            ensureNoticeVisibleToUser(jdbcTemplate, id, userId);
+        }
+        return getMyNotice(jdbcTemplate, id, userId);
+    }
+
+    @OperationLog(action = "NOTICE_READ_ALL", targetType = "sys_notice")
+    public Integer markAllRead() {
+        Long userId = CurrentUserContext.require().getUserId();
+        return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().update(
+                "UPDATE sys_notice_receiver r JOIN sys_notice n ON r.notice_id = n.id " +
+                        "SET r.read_time = NOW() WHERE r.user_id = ? AND r.read_time IS NULL AND n.status = 'ACTIVE'",
+                userId);
+    }
+
+    @OperationLog(action = "NOTICE_DELETE", targetType = "sys_notice", targetIdArg = 0)
+    public NoticeResponse deleteNotice(Long id) {
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        int updated = jdbcTemplate.update(
+                "UPDATE sys_notice SET status = 'DELETED' WHERE id = ? AND status = 'ACTIVE'",
+                id);
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "notice not found");
+        }
+        return getNoticeIncludingDeleted(jdbcTemplate, id);
     }
 
     private NoticeResponse createNoticeInternal(NoticeCreateRequest request, Long senderUserId) {
@@ -121,7 +184,7 @@ public class NoticeService {
                     noticeId,
                     receiverUserId);
         }
-        return getNotice(noticeId);
+        return getNotice(jdbcTemplate, noticeId);
     }
 
     private List<Long> resolveReceivers(JdbcTemplate jdbcTemplate, List<Long> receiverUserIds) {
@@ -133,8 +196,8 @@ public class NoticeService {
                 (rs, rowNum) -> rs.getLong("id"));
     }
 
-    private NoticeResponse getNotice(Long id) {
-        List<NoticeResponse> notices = tenantJdbcTemplateProvider.currentTenantJdbcTemplate().query(
+    private NoticeResponse getNotice(JdbcTemplate jdbcTemplate, Long id) {
+        List<NoticeResponse> notices = jdbcTemplate.query(
                 "SELECT id, title, content, notice_type, sender_user_id, status, NULL AS read_time, create_time " +
                         "FROM sys_notice WHERE id = ? AND status = 'ACTIVE'",
                 (rs, rowNum) -> mapNotice(rs),
@@ -146,8 +209,21 @@ public class NoticeService {
         return notices.get(0);
     }
 
-    private NoticeResponse getMyNotice(Long id, Long userId) {
-        List<NoticeResponse> notices = tenantJdbcTemplateProvider.currentTenantJdbcTemplate().query(
+    private NoticeResponse getNoticeIncludingDeleted(JdbcTemplate jdbcTemplate, Long id) {
+        List<NoticeResponse> notices = jdbcTemplate.query(
+                "SELECT id, title, content, notice_type, sender_user_id, status, NULL AS read_time, create_time " +
+                        "FROM sys_notice WHERE id = ?",
+                (rs, rowNum) -> mapNotice(rs),
+                id
+            );
+        if (notices.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "notice not found");
+        }
+        return notices.get(0);
+    }
+
+    private NoticeResponse getMyNotice(JdbcTemplate jdbcTemplate, Long id, Long userId) {
+        List<NoticeResponse> notices = jdbcTemplate.query(
                 "SELECT n.id, n.title, n.content, n.notice_type, n.sender_user_id, n.status, r.read_time, n.create_time " +
                         "FROM sys_notice n JOIN sys_notice_receiver r ON n.id = r.notice_id " +
                         "WHERE n.id = ? AND r.user_id = ? AND n.status = 'ACTIVE'",
@@ -172,6 +248,10 @@ public class NoticeService {
         if (count == null || count == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "notice not found");
         }
+    }
+
+    private int safeLimit(Integer limit) {
+        return limit == null ? 200 : Math.max(1, Math.min(limit, 500));
     }
 
     private NoticeResponse mapNotice(ResultSet rs) throws SQLException {

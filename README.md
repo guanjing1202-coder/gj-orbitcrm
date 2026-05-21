@@ -353,9 +353,14 @@ gj-orbitcrm
 ### 9. 消息通知
 
 - 创建站内通知
+- 通知管理列表
+- 通知详情
 - 查询我的通知
 - 查询未读数量
 - 标记已读
+- 全部标记已读
+- 标记未读
+- 通知软删除
 - RabbitMQ 消息消费
 - 可接收任务提醒等业务事件
 - 支持通知接收人表
@@ -562,8 +567,14 @@ DELETE /api/files/{id}/purge                 永久删除文件
 
 GET    /api/messages/notices/mine            我的通知
 GET    /api/messages/notices/mine/unread-count 未读数量
+GET    /api/messages/notices/mine/{id}       我的通知详情
+PATCH  /api/messages/notices/mine/read-all   全部标记已读
+GET    /api/messages/notices                 通知管理列表
+GET    /api/messages/notices/{id}            通知详情
 PATCH  /api/messages/notices/{id}/read       标记已读
+PATCH  /api/messages/notices/{id}/unread     标记未读
 POST   /api/messages/notices                 创建通知
+DELETE /api/messages/notices/{id}            删除通知
 POST   /api/messages/notices/events          发布通知事件
 
 GET    /api/system/users                     用户列表
