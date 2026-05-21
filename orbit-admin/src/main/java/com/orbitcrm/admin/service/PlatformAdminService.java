@@ -80,6 +80,61 @@ public class PlatformAdminService {
                         rs.getTimestamp("create_time")));
     }
 
+    public PlatformTenantResponse getTenant(Long id) {
+        List<PlatformTenantResponse> tenants = jdbcTemplate.query(
+                tenantListSql("WHERE t.id = ?"),
+                (rs, rowNum) -> mapTenant(rs.getLong("id"),
+                        rs.getString("tenant_code"),
+                        rs.getString("tenant_name"),
+                        rs.getString("status"),
+                        rs.getString("contact_name"),
+                        rs.getString("contact_email"),
+                        rs.getString("plan_code"),
+                        rs.getString("subscription_status"),
+                        rs.getTimestamp("subscription_end_time"),
+                        rs.getTimestamp("create_time")),
+                id
+            );
+        if (tenants.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "tenant not found");
+        }
+        return tenants.get(0);
+    }
+
+    public List<PlatformSubscriptionResponse> listTenantSubscriptions(Long tenantId) {
+        getTenant(tenantId);
+        return jdbcTemplate.query(
+                subscriptionListSql("WHERE t.id = ?"),
+                (rs, rowNum) -> mapSubscription(rs.getLong("id"),
+                        rs.getString("tenant_code"),
+                        rs.getString("plan_code"),
+                        rs.getString("status"),
+                        rs.getTimestamp("start_time"),
+                        rs.getTimestamp("end_time"),
+                        rs.getTimestamp("trial_end_time"),
+                        rs.getInt("grace_days")),
+                tenantId
+            );
+    }
+
+    public List<PlatformOrderResponse> listTenantOrders(Long tenantId) {
+        getTenant(tenantId);
+        return jdbcTemplate.query(
+                orderListSql("WHERE t.id = ?"),
+                (rs, rowNum) -> mapOrder(rs.getLong("id"),
+                        rs.getString("order_no"),
+                        rs.getString("tenant_code"),
+                        rs.getString("plan_code"),
+                        rs.getString("order_type"),
+                        rs.getInt("period_months"),
+                        rs.getLong("amount_cent"),
+                        rs.getString("status"),
+                        rs.getTimestamp("paid_time"),
+                        rs.getTimestamp("create_time")),
+                tenantId
+            );
+    }
+
     public PlatformTenantResponse updateTenantStatus(Long id, String status) {
         String normalizedStatus = normalizeStatus(status);
         int updated = jdbcTemplate.update("UPDATE platform_tenant SET status = ? WHERE id = ?", normalizedStatus, id);
@@ -122,6 +177,15 @@ public class PlatformAdminService {
                     }
                 });
         return new ArrayList<PlatformPlanResponse>(plans.values());
+    }
+
+    public PlatformPlanResponse getPlan(Long id) {
+        for (PlatformPlanResponse plan : listPlans()) {
+            if (id.equals(plan.getId())) {
+                return plan;
+            }
+        }
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "plan not found");
     }
 
     @Transactional
@@ -181,6 +245,25 @@ public class PlatformAdminService {
                         rs.getInt("grace_days")));
     }
 
+    public PlatformSubscriptionResponse getSubscription(Long id) {
+        List<PlatformSubscriptionResponse> subscriptions = jdbcTemplate.query(
+                subscriptionListSql("WHERE s.id = ?"),
+                (rs, rowNum) -> mapSubscription(rs.getLong("id"),
+                        rs.getString("tenant_code"),
+                        rs.getString("plan_code"),
+                        rs.getString("status"),
+                        rs.getTimestamp("start_time"),
+                        rs.getTimestamp("end_time"),
+                        rs.getTimestamp("trial_end_time"),
+                        rs.getInt("grace_days")),
+                id
+            );
+        if (subscriptions.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "subscription not found");
+        }
+        return subscriptions.get(0);
+    }
+
     public List<PlatformOrderResponse> listOrders(String status) {
         if (StringUtils.hasText(status)) {
             return jdbcTemplate.query(
@@ -212,6 +295,27 @@ public class PlatformAdminService {
                         rs.getTimestamp("create_time")));
     }
 
+    public PlatformOrderResponse getOrder(Long id) {
+        List<PlatformOrderResponse> orders = jdbcTemplate.query(
+                orderListSql("WHERE o.id = ?"),
+                (rs, rowNum) -> mapOrder(rs.getLong("id"),
+                        rs.getString("order_no"),
+                        rs.getString("tenant_code"),
+                        rs.getString("plan_code"),
+                        rs.getString("order_type"),
+                        rs.getInt("period_months"),
+                        rs.getLong("amount_cent"),
+                        rs.getString("status"),
+                        rs.getTimestamp("paid_time"),
+                        rs.getTimestamp("create_time")),
+                id
+            );
+        if (orders.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found");
+        }
+        return orders.get(0);
+    }
+
     public List<PlatformOperationLogResponse> listOperationLogs(String action, Integer limit) {
         int safeLimit = limit == null ? 100 : Math.max(1, Math.min(limit, 500));
         if (StringUtils.hasText(action)) {
@@ -240,36 +344,6 @@ public class PlatformAdminService {
                         rs.getString("detail_json"),
                         rs.getString("ip"),
                         rs.getTimestamp("create_time")));
-    }
-
-    private PlatformTenantResponse getTenant(Long id) {
-        List<PlatformTenantResponse> tenants = jdbcTemplate.query(
-                tenantListSql("WHERE t.id = ?"),
-                (rs, rowNum) -> mapTenant(rs.getLong("id"),
-                        rs.getString("tenant_code"),
-                        rs.getString("tenant_name"),
-                        rs.getString("status"),
-                        rs.getString("contact_name"),
-                        rs.getString("contact_email"),
-                        rs.getString("plan_code"),
-                        rs.getString("subscription_status"),
-                        rs.getTimestamp("subscription_end_time"),
-                        rs.getTimestamp("create_time")),
-                id
-            );
-        if (tenants.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "tenant not found");
-        }
-        return tenants.get(0);
-    }
-
-    private PlatformPlanResponse getPlan(Long id) {
-        for (PlatformPlanResponse plan : listPlans()) {
-            if (id.equals(plan.getId())) {
-                return plan;
-            }
-        }
-        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "plan not found");
     }
 
     private void upsertPlanFeature(Long planId, PlatformPlanFeatureRequest feature) {

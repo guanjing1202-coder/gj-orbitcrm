@@ -1,5 +1,7 @@
 package com.orbitcrm.admin.controller;
 
+import com.orbitcrm.admin.api.PlatformOrderResponse;
+import com.orbitcrm.admin.api.PlatformSubscriptionResponse;
 import com.orbitcrm.admin.api.PlatformTenantResponse;
 import com.orbitcrm.admin.api.PlatformTenantStatusRequest;
 import com.orbitcrm.admin.service.PlatformAdminService;
@@ -28,6 +30,23 @@ public class PlatformTenantController {
     public ApiResult<List<PlatformTenantResponse>> listTenants(
             @RequestParam(value = "status", required = false) String status) {
         return ApiResult.ok(platformAdminService.listTenants(status));
+    }
+
+    @GetMapping("/{id}")
+    public ApiResult<PlatformTenantResponse> getTenant(@PathVariable("id") Long id) {
+        return ApiResult.ok(platformAdminService.getTenant(id));
+    }
+
+    @GetMapping("/{id}/subscriptions")
+    public ApiResult<List<PlatformSubscriptionResponse>> listTenantSubscriptions(
+            @PathVariable("id") Long id) {
+        return ApiResult.ok(platformAdminService.listTenantSubscriptions(id));
+    }
+
+    @GetMapping("/{id}/orders")
+    public ApiResult<List<PlatformOrderResponse>> listTenantOrders(
+            @PathVariable("id") Long id) {
+        return ApiResult.ok(platformAdminService.listTenantOrders(id));
     }
 
     @PatchMapping("/{id}/status")

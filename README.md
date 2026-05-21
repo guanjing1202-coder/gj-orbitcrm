@@ -413,12 +413,17 @@ Content-Type: application/json
 - 平台 API Key 保护后台接口
 - 平台概览数据
 - 租户列表
+- 租户详情
+- 租户订阅与订单钻取
 - 修改租户状态
 - 套餐列表
+- 套餐详情
 - 新增或更新套餐
 - 配置套餐功能项
 - 查询订阅
+- 查询订阅详情
 - 查询订单
+- 查询订单详情
 - 查询平台操作日志
 
 ## 数据库设计
@@ -607,10 +612,16 @@ POST   /openapi/v1/leads                     外部线索写入
 
 GET    /api/admin/dashboard/summary          平台概览
 GET    /api/admin/tenants                    平台租户列表
+GET    /api/admin/tenants/{id}               平台租户详情
+GET    /api/admin/tenants/{id}/subscriptions 租户订阅记录
+GET    /api/admin/tenants/{id}/orders        租户订单记录
 PATCH  /api/admin/tenants/{id}/status        修改租户状态
 GET    /api/admin/plans                      平台套餐列表
+GET    /api/admin/plans/{id}                 平台套餐详情
 GET    /api/admin/billing/subscriptions      平台订阅列表
+GET    /api/admin/billing/subscriptions/{id} 平台订阅详情
 GET    /api/admin/billing/orders             平台订单列表
+GET    /api/admin/billing/orders/{id}        平台订单详情
 ```
 
 ## 本地中间件
