@@ -381,6 +381,9 @@ gj-orbitcrm
 - 数据库只保存 SHA-256 Hash
 - 支持 Key 前缀展示
 - 支持禁用 Key
+- 支持启用 Key
+- 支持轮换 Key，新的明文 Key 只在轮换时返回一次
+- 支持软删除 Key
 - 支持 Scope 权限，例如 `crm:lead:write`
 - 第三方官网、广告表单或落地页可写入线索
 - OpenAPI 请求同时校验租户、Key、Scope 和订阅状态
@@ -587,8 +590,12 @@ GET    /api/system/operation-logs            操作日志
 GET    /api/system/operation-logs/action-stats 操作动作统计
 
 GET    /api/openapi/keys                     OpenAPI Key 列表
+GET    /api/openapi/keys/{id}                OpenAPI Key 详情
 POST   /api/openapi/keys                     创建 OpenAPI Key
+PATCH  /api/openapi/keys/{id}/enable         启用 OpenAPI Key
 PATCH  /api/openapi/keys/{id}/disable        禁用 OpenAPI Key
+PATCH  /api/openapi/keys/{id}/rotate         轮换 OpenAPI Key
+DELETE /api/openapi/keys/{id}                删除 OpenAPI Key
 POST   /openapi/v1/leads                     外部线索写入
 
 GET    /api/admin/dashboard/summary          平台概览

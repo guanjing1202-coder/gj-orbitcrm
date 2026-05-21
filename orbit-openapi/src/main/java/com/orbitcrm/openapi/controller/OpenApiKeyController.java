@@ -6,6 +6,7 @@ import com.orbitcrm.openapi.api.OpenApiKeyCreateRequest;
 import com.orbitcrm.openapi.api.OpenApiKeyResponse;
 import com.orbitcrm.openapi.service.OpenApiKeyService;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,15 +32,39 @@ public class OpenApiKeyController {
         return ApiResult.ok(openApiKeyService.listKeys());
     }
 
+    @GetMapping("/{id}")
+    @RequiresPermission("openapi:key:manage")
+    public ApiResult<OpenApiKeyResponse> getKey(@PathVariable("id") Long id) {
+        return ApiResult.ok(openApiKeyService.getKey(id));
+    }
+
     @PostMapping
     @RequiresPermission("openapi:key:manage")
     public ApiResult<OpenApiKeyResponse> createKey(@Validated @RequestBody OpenApiKeyCreateRequest request) {
         return ApiResult.ok(openApiKeyService.createKey(request));
     }
 
+    @PatchMapping("/{id}/enable")
+    @RequiresPermission("openapi:key:manage")
+    public ApiResult<OpenApiKeyResponse> enableKey(@PathVariable("id") Long id) {
+        return ApiResult.ok(openApiKeyService.enableKey(id));
+    }
+
     @PatchMapping("/{id}/disable")
     @RequiresPermission("openapi:key:manage")
     public ApiResult<OpenApiKeyResponse> disableKey(@PathVariable("id") Long id) {
         return ApiResult.ok(openApiKeyService.disableKey(id));
+    }
+
+    @PatchMapping("/{id}/rotate")
+    @RequiresPermission("openapi:key:manage")
+    public ApiResult<OpenApiKeyResponse> rotateKey(@PathVariable("id") Long id) {
+        return ApiResult.ok(openApiKeyService.rotateKey(id));
+    }
+
+    @DeleteMapping("/{id}")
+    @RequiresPermission("openapi:key:manage")
+    public ApiResult<OpenApiKeyResponse> deleteKey(@PathVariable("id") Long id) {
+        return ApiResult.ok(openApiKeyService.deleteKey(id));
     }
 }

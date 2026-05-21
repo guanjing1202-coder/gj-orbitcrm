@@ -40,8 +40,12 @@ public class OpenApiKeyService {
     public List<OpenApiKeyResponse> listKeys() {
         return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().query(
                 "SELECT id, key_name, key_prefix, scopes, status, last_used_time, create_time " +
-                        "FROM sys_openapi_key ORDER BY id DESC LIMIT 100",
+                        "FROM sys_openapi_key WHERE status <> 'DELETED' ORDER BY id DESC LIMIT 100",
                 (rs, rowNum) -> mapKey(rs));
+    }
+
+    public OpenApiKeyResponse getKey(Long id) {
+        return getKey(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id);
     }
 
     @OperationLog(action = "OPENAPI_KEY_CREATE", targetType = "sys_openapi_key")
@@ -62,25 +66,82 @@ public class OpenApiKeyService {
                 scopes,
                 creatorUserId);
         Long id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-        OpenApiKeyResponse response = getKey(id);
+        OpenApiKeyResponse response = getKey(jdbcTemplate, id);
         response.setSecretKey(secretKey);
         return response;
     }
 
+    @OperationLog(action = "OPENAPI_KEY_ENABLE", targetType = "sys_openapi_key", targetIdArg = 0)
+    public OpenApiKeyResponse enableKey(Long id) {
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        int updated = jdbcTemplate.update(
+                "UPDATE sys_openapi_key SET status = 'ACTIVE' WHERE id = ? AND status = 'DISABLED'",
+                id);
+        if (updated == 0) {
+            ensureKeyExists(jdbcTemplate, id);
+        }
+        return getKey(jdbcTemplate, id);
+    }
+
     @OperationLog(action = "OPENAPI_KEY_DISABLE", targetType = "sys_openapi_key", targetIdArg = 0)
     public OpenApiKeyResponse disableKey(Long id) {
-        int updated = tenantJdbcTemplateProvider.currentTenantJdbcTemplate().update(
-                "UPDATE sys_openapi_key SET status = 'DISABLED' WHERE id = ? AND status <> 'DISABLED'",
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        int updated = jdbcTemplate.update(
+                "UPDATE sys_openapi_key SET status = 'DISABLED' WHERE id = ? AND status = 'ACTIVE'",
+                id);
+        if (updated == 0) {
+            ensureKeyExists(jdbcTemplate, id);
+        }
+        return getKey(jdbcTemplate, id);
+    }
+
+    @OperationLog(action = "OPENAPI_KEY_ROTATE", targetType = "sys_openapi_key", targetIdArg = 0)
+    public OpenApiKeyResponse rotateKey(Long id) {
+        String secretKey = generateSecretKey();
+        String keyPrefix = secretKey.substring(0, Math.min(12, secretKey.length()));
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        int updated = jdbcTemplate.update(
+                "UPDATE sys_openapi_key SET key_prefix = ?, key_hash = ?, last_used_time = NULL " +
+                        "WHERE id = ? AND status <> 'DELETED'",
+                keyPrefix,
+                keyHasher.sha256(secretKey),
                 id);
         if (updated == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "openapi key not found");
         }
-        return getKey(id);
+        OpenApiKeyResponse response = getKey(jdbcTemplate, id);
+        response.setSecretKey(secretKey);
+        return response;
     }
 
-    private OpenApiKeyResponse getKey(Long id) {
+    @OperationLog(action = "OPENAPI_KEY_DELETE", targetType = "sys_openapi_key", targetIdArg = 0)
+    public OpenApiKeyResponse deleteKey(Long id) {
+        JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        int updated = jdbcTemplate.update(
+                "UPDATE sys_openapi_key SET status = 'DELETED' WHERE id = ? AND status <> 'DELETED'",
+                id);
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "openapi key not found");
+        }
+        return getKeyIncludingDeleted(jdbcTemplate, id);
+    }
+
+    private OpenApiKeyResponse getKey(JdbcTemplate jdbcTemplate, Long id) {
         try {
-            return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
+            return jdbcTemplate.queryForObject(
+                    "SELECT id, key_name, key_prefix, scopes, status, last_used_time, create_time " +
+                            "FROM sys_openapi_key WHERE id = ? AND status <> 'DELETED'",
+                    (rs, rowNum) -> mapKey(rs),
+                    id
+                );
+        } catch (EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "openapi key not found", ex);
+        }
+    }
+
+    private OpenApiKeyResponse getKeyIncludingDeleted(JdbcTemplate jdbcTemplate, Long id) {
+        try {
+            return jdbcTemplate.queryForObject(
                     "SELECT id, key_name, key_prefix, scopes, status, last_used_time, create_time " +
                             "FROM sys_openapi_key WHERE id = ?",
                     (rs, rowNum) -> mapKey(rs),
@@ -88,6 +149,16 @@ public class OpenApiKeyService {
                 );
         } catch (EmptyResultDataAccessException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "openapi key not found", ex);
+        }
+    }
+
+    private void ensureKeyExists(JdbcTemplate jdbcTemplate, Long id) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM sys_openapi_key WHERE id = ? AND status <> 'DELETED'",
+                Integer.class,
+                id);
+        if (count == null || count == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "openapi key not found");
         }
     }
 
