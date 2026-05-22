@@ -174,10 +174,13 @@ public class BillingService {
     @Transactional
     @OperationLog(action = "BILLING_ORDER_CREATE", targetType = "platform_order")
     public BillingOrderResponse createOrder(BillingOrderCreateRequest request) {
+        validateOrderCreateRequest(request);
+        String planCode = normalizePlanCode(request.getPlanCode());
+        String orderType = normalizeOrderType(request.getOrderType());
+        validatePeriodMonths(request.getPeriodMonths());
         String tenantCode = resolveTenantCode(request.getTenantCode());
         TenantRecord tenant = tenantRecord(tenantCode);
-        PlanRecord plan = planRecord(normalizePlanCode(request.getPlanCode()));
-        String orderType = normalizeOrderType(request.getOrderType());
+        PlanRecord plan = planRecord(planCode);
         int periodMonths = normalizePeriodMonths(request.getPeriodMonths(), plan.getBillingCycle());
         SubscriptionRecord subscription = latestSubscription(tenant.getId());
         Long amountCent = amountForPeriod(plan, periodMonths);
@@ -201,6 +204,7 @@ public class BillingService {
     @Transactional
     @OperationLog(action = "BILLING_ORDER_CANCEL", targetType = "platform_order", targetIdArg = 0)
     public BillingOrderResponse cancelOrder(Long orderId) {
+        validateOrderId(orderId);
         OrderRecord order = orderRecord(orderId);
         if ("CANCELED".equals(order.getStatus())) {
             return getOrder(orderId);
@@ -217,6 +221,8 @@ public class BillingService {
     @Transactional
     @OperationLog(action = "BILLING_PAYMENT_CONFIRM", targetType = "platform_order", targetIdArg = 0)
     public PaymentResponse confirmPayment(Long orderId, PaymentConfirmRequest request) {
+        validateOrderId(orderId);
+        validatePaymentRequest(request);
         OrderRecord order = orderRecord(orderId);
         if ("PAID".equals(order.getStatus())) {
             return latestPayment(orderId);
@@ -228,13 +234,15 @@ public class BillingService {
         if (!paidAmount.equals(order.getAmountCent())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "payment amount does not match order amount");
         }
+        String paymentChannel = request.getPaymentChannel().trim();
+        String paymentNo = request.getPaymentNo().trim();
         LocalDateTime now = LocalDateTime.now();
         jdbcTemplate.update(
                 "INSERT INTO platform_payment (order_id, payment_channel, payment_no, amount_cent, status, paid_time) " +
                         "VALUES (?, ?, ?, ?, 'SUCCESS', ?)",
                 orderId,
-                request.getPaymentChannel(),
-                request.getPaymentNo(),
+                paymentChannel,
+                paymentNo,
                 paidAmount,
                 now);
         Long paymentId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
@@ -257,6 +265,33 @@ public class BillingService {
                 "UPDATE platform_subscription SET status = 'FROZEN' " +
                         "WHERE status = 'PAST_DUE' AND DATE_ADD(end_time, INTERVAL grace_days DAY) < NOW()");
         return expiredTrials + pastDueSubscriptions + frozenSubscriptions;
+    }
+
+    private void validateOrderCreateRequest(BillingOrderCreateRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "order request is required");
+        }
+    }
+
+    private void validatePeriodMonths(Integer periodMonths) {
+        if (periodMonths != null && periodMonths <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "periodMonths must be positive");
+        }
+    }
+
+    private void validatePaymentRequest(PaymentConfirmRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "payment request is required");
+        }
+        if (!StringUtils.hasText(request.getPaymentChannel())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "paymentChannel is required");
+        }
+        if (!StringUtils.hasText(request.getPaymentNo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "paymentNo is required");
+        }
+        if (request.getAmountCent() != null && request.getAmountCent() < 0L) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amountCent must be non-negative");
+        }
     }
 
     private void applyOrderToSubscription(OrderRecord order, LocalDateTime paidTime) {
@@ -287,6 +322,7 @@ public class BillingService {
     }
 
     public BillingOrderResponse getOrder(Long orderId) {
+        validateOrderId(orderId);
         List<BillingOrderResponse> orders = jdbcTemplate.query(
                 "SELECT o.id, o.order_no, t.tenant_code, o.subscription_id, p.plan_code, p.plan_name, " +
                         "o.order_type, o.period_months, o.amount_cent, o.status, o.paid_time, o.create_time " +
@@ -312,6 +348,12 @@ public class BillingService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found");
         }
         return orders.get(0);
+    }
+
+    private void validateOrderId(Long orderId) {
+        if (orderId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "orderId is required");
+        }
     }
 
     private BillingOrderResponse mapOrder(Long id, String orderNo, String tenantCode, Long subscriptionId,

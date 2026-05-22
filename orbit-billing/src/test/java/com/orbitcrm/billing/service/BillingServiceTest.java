@@ -1,6 +1,7 @@
 package com.orbitcrm.billing.service;
 
 import com.orbitcrm.billing.api.BillingOrderResponse;
+import com.orbitcrm.billing.api.BillingOrderCreateRequest;
 import com.orbitcrm.billing.api.PaymentConfirmRequest;
 import com.orbitcrm.billing.api.SubscriptionResponse;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,6 +52,84 @@ class BillingServiceTest {
     }
 
     @Test
+    void cancelOrderRejectsMissingOrderIdBeforeReadingOrder() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.cancelOrder(null));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void getOrderRejectsMissingOrderIdBeforeReadingOrder() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.getOrder(null));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void createOrderRejectsMissingRequestBeforeReadingTenant() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.createOrder(null));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void createOrderRejectsBlankPlanCodeBeforeReadingTenant() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+        BillingOrderCreateRequest request = orderCreateRequest();
+        request.setPlanCode(" ");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.createOrder(request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void createOrderRejectsUnsupportedOrderTypeBeforeReadingTenant() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+        BillingOrderCreateRequest request = orderCreateRequest();
+        request.setOrderType("trial");
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.createOrder(request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void createOrderRejectsNegativePeriodMonthsBeforeReadingTenant() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+        BillingOrderCreateRequest request = orderCreateRequest();
+        request.setPeriodMonths(-1);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.createOrder(request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
     void confirmPaymentRejectsCanceledOrder() {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
@@ -64,6 +145,106 @@ class BillingServiceTest {
                 () -> billingService.confirmPayment(ORDER_ID, request));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+    }
+
+    @Test
+    void confirmPaymentRejectsMissingRequestBeforeReadingOrder() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.confirmPayment(ORDER_ID, null));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void confirmPaymentRejectsMissingOrderIdBeforeReadingOrder() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+        PaymentConfirmRequest request = paymentConfirmRequest();
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.confirmPayment(null, request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void confirmPaymentRejectsBlankPaymentChannelBeforeReadingOrder() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+        PaymentConfirmRequest request = new PaymentConfirmRequest();
+        request.setPaymentChannel(" ");
+        request.setPaymentNo("PAY-001");
+        request.setAmountCent(9900L);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.confirmPayment(ORDER_ID, request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void confirmPaymentRejectsNegativeAmountBeforeReadingOrder() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+        PaymentConfirmRequest request = new PaymentConfirmRequest();
+        request.setPaymentChannel("MANUAL");
+        request.setPaymentNo("PAY-001");
+        request.setAmountCent(-1L);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.confirmPayment(ORDER_ID, request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    void confirmPaymentRejectsBlankPaymentNoBeforeReadingOrder() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+        PaymentConfirmRequest request = new PaymentConfirmRequest();
+        request.setPaymentChannel("MANUAL");
+        request.setPaymentNo(" ");
+        request.setAmountCent(9900L);
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> billingService.confirmPayment(ORDER_ID, request));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
+        verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void confirmPaymentTrimsChannelAndPaymentNoBeforeSaving() {
+        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+        BillingService billingService = new BillingService(jdbcTemplate);
+        PaymentConfirmRequest request = new PaymentConfirmRequest();
+        request.setPaymentChannel(" MANUAL ");
+        request.setPaymentNo(" PAY-001 ");
+        request.setAmountCent(9900L);
+        when(jdbcTemplate.query(anyString(), any(RowMapper.class), any()))
+                .thenAnswer(this::paymentConfirmationQuery);
+        when(jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class)).thenReturn(900L);
+        when(jdbcTemplate.queryForObject(anyString(), any(RowMapper.class), eq(900L)))
+                .thenAnswer(invocation -> mapPaymentResponse(invocation.getArgument(1), "MANUAL", "PAY-001"));
+
+        billingService.confirmPayment(ORDER_ID, request);
+
+        verify(jdbcTemplate).update(
+                eq("INSERT INTO platform_payment (order_id, payment_channel, payment_no, amount_cent, status, paid_time) " +
+                        "VALUES (?, ?, ?, ?, 'SUCCESS', ?)"),
+                eq(ORDER_ID),
+                eq("MANUAL"),
+                eq("PAY-001"),
+                eq(9900L),
+                any(LocalDateTime.class));
     }
 
     @Test
@@ -118,6 +299,18 @@ class BillingServiceTest {
         }
         if (sql.contains("JOIN platform_tenant t ON o.tenant_id = t.id")) {
             return Collections.singletonList(mapOrderResponse(mapper, responseStatus));
+        }
+        return Collections.emptyList();
+    }
+
+    private Object paymentConfirmationQuery(InvocationOnMock invocation) throws Exception {
+        String sql = invocation.getArgument(0);
+        RowMapper mapper = invocation.getArgument(1);
+        if (sql.contains("FROM platform_order WHERE id = ?")) {
+            return Collections.singletonList(mapOrderRecord(mapper, "UNPAID"));
+        }
+        if (sql.contains("FROM platform_subscription WHERE id = ?")) {
+            return Collections.singletonList(mapSubscriptionRecord(mapper, "ACTIVE"));
         }
         return Collections.emptyList();
     }
@@ -202,5 +395,35 @@ class BillingServiceTest {
         when(resultSet.getTimestamp("create_time"))
                 .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 5, 21, 9, 30)));
         return mapper.mapRow(resultSet, 0);
+    }
+
+    private Object mapPaymentResponse(RowMapper mapper, String paymentChannel, String paymentNo) throws Exception {
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getLong("id")).thenReturn(900L);
+        when(resultSet.getLong("order_id")).thenReturn(ORDER_ID);
+        when(resultSet.getString("payment_channel")).thenReturn(paymentChannel);
+        when(resultSet.getString("payment_no")).thenReturn(paymentNo);
+        when(resultSet.getLong("amount_cent")).thenReturn(9900L);
+        when(resultSet.getString("status")).thenReturn("SUCCESS");
+        when(resultSet.getTimestamp("paid_time"))
+                .thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 5, 22, 14, 30)));
+        return mapper.mapRow(resultSet, 0);
+    }
+
+    private PaymentConfirmRequest paymentConfirmRequest() {
+        PaymentConfirmRequest request = new PaymentConfirmRequest();
+        request.setPaymentChannel("MANUAL");
+        request.setPaymentNo("PAY-001");
+        request.setAmountCent(9900L);
+        return request;
+    }
+
+    private BillingOrderCreateRequest orderCreateRequest() {
+        BillingOrderCreateRequest request = new BillingOrderCreateRequest();
+        request.setTenantCode(TENANT_CODE);
+        request.setPlanCode("professional");
+        request.setOrderType("RENEW");
+        request.setPeriodMonths(1);
+        return request;
     }
 }

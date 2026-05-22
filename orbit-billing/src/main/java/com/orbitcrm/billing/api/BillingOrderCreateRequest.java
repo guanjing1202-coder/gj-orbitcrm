@@ -1,12 +1,14 @@
 package com.orbitcrm.billing.api;
 
 import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.Positive;
 
 public class BillingOrderCreateRequest {
     private String tenantCode;
     @NotBlank
     private String planCode;
     private String orderType = "RENEW";
+    @Positive
     private Integer periodMonths;
 
     public String getTenantCode() {
