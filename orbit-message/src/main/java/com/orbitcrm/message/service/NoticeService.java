@@ -29,26 +29,30 @@ public class NoticeService {
     }
 
     public List<NoticeResponse> listNotices(String status, String noticeType, Integer limit) {
+        requireTenantCode();
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
+        String normalizedStatus = normalizeText(status);
+        String normalizedNoticeType = normalizeText(noticeType);
         StringBuilder sql = new StringBuilder(
                 "SELECT id, title, content, notice_type, sender_user_id, status, NULL AS read_time, create_time " +
                         "FROM sys_notice WHERE 1 = 1");
         java.util.List<Object> values = new java.util.ArrayList<Object>();
-        if (StringUtils.hasText(status)) {
+        if (StringUtils.hasText(normalizedStatus)) {
             sql.append(" AND status = ?");
-            values.add(status);
+            values.add(normalizedStatus);
         } else {
             sql.append(" AND status <> 'DELETED'");
         }
-        if (StringUtils.hasText(noticeType)) {
+        if (StringUtils.hasText(normalizedNoticeType)) {
             sql.append(" AND notice_type = ?");
-            values.add(noticeType);
+            values.add(normalizedNoticeType);
         }
         sql.append(" ORDER BY id DESC LIMIT ").append(safeLimit(limit));
         return jdbcTemplate.query(sql.toString(), (rs, rowNum) -> mapNotice(rs), values.toArray());
     }
 
     public List<NoticeResponse> listMyNotices(Boolean unreadOnly) {
+        requireTenantCode();
         Long userId = CurrentUserContext.require().getUserId();
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         if (Boolean.TRUE.equals(unreadOnly)) {
@@ -71,6 +75,7 @@ public class NoticeService {
     }
 
     public Integer unreadCount() {
+        requireTenantCode();
         Long userId = CurrentUserContext.require().getUserId();
         Integer count = tenantJdbcTemplateProvider.currentTenantJdbcTemplate().queryForObject(
                 "SELECT COUNT(1) FROM sys_notice n JOIN sys_notice_receiver r ON n.id = r.notice_id " +
@@ -83,14 +88,18 @@ public class NoticeService {
 
     @OperationLog(action = "NOTICE_CREATE", targetType = "sys_notice")
     public NoticeResponse createNotice(NoticeCreateRequest request) {
+        requireTenantCode();
         return createNoticeInternal(request, currentUserId());
     }
 
     public NoticeResponse createNoticeFromEvent(NoticeEvent event) {
+        if (event == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "notice event is required");
+        }
         if (!StringUtils.hasText(event.getTenantCode())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tenantCode is required");
         }
-        TenantContext.setTenantCode(event.getTenantCode());
+        TenantContext.setTenantCode(event.getTenantCode().trim());
         try {
             NoticeCreateRequest request = new NoticeCreateRequest();
             request.setTitle(event.getTitle());
@@ -104,16 +113,22 @@ public class NoticeService {
     }
 
     public NoticeResponse getNotice(Long id) {
+        requireTenantCode();
+        validateNoticeId(id);
         return getNotice(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id);
     }
 
     public NoticeResponse getMyNotice(Long id) {
+        requireTenantCode();
+        validateNoticeId(id);
         Long userId = CurrentUserContext.require().getUserId();
         return getMyNotice(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id, userId);
     }
 
     @OperationLog(action = "NOTICE_READ", targetType = "sys_notice", targetIdArg = 0)
     public NoticeResponse markRead(Long id) {
+        requireTenantCode();
+        validateNoticeId(id);
         Long userId = CurrentUserContext.require().getUserId();
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         int updated = jdbcTemplate.update(
@@ -128,6 +143,8 @@ public class NoticeService {
 
     @OperationLog(action = "NOTICE_UNREAD", targetType = "sys_notice", targetIdArg = 0)
     public NoticeResponse markUnread(Long id) {
+        requireTenantCode();
+        validateNoticeId(id);
         Long userId = CurrentUserContext.require().getUserId();
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         int updated = jdbcTemplate.update(
@@ -142,6 +159,7 @@ public class NoticeService {
 
     @OperationLog(action = "NOTICE_READ_ALL", targetType = "sys_notice")
     public Integer markAllRead() {
+        requireTenantCode();
         Long userId = CurrentUserContext.require().getUserId();
         return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().update(
                 "UPDATE sys_notice_receiver r JOIN sys_notice n ON r.notice_id = n.id " +
@@ -151,6 +169,8 @@ public class NoticeService {
 
     @OperationLog(action = "NOTICE_DELETE", targetType = "sys_notice", targetIdArg = 0)
     public NoticeResponse deleteNotice(Long id) {
+        requireTenantCode();
+        validateNoticeId(id);
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         int updated = jdbcTemplate.update(
                 "UPDATE sys_notice SET status = 'DELETED' WHERE id = ? AND status = 'ACTIVE'",
@@ -161,22 +181,34 @@ public class NoticeService {
         return getNoticeIncludingDeleted(jdbcTemplate, id);
     }
 
+    private void validateNoticeId(Long id) {
+        if (id == null || id <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "notice id is required");
+        }
+    }
+
     private NoticeResponse createNoticeInternal(NoticeCreateRequest request, Long senderUserId) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "notice request is required");
+        }
         if (!StringUtils.hasText(request.getTitle()) || !StringUtils.hasText(request.getContent())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "title and content are required");
         }
+        String title = request.getTitle().trim();
+        String content = request.getContent().trim();
+        String noticeType = StringUtils.hasText(request.getNoticeType()) ? request.getNoticeType().trim() : "SYSTEM";
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
-        jdbcTemplate.update(
-                "INSERT INTO sys_notice (title, content, notice_type, sender_user_id, status) VALUES (?, ?, ?, ?, 'ACTIVE')",
-                request.getTitle(),
-                request.getContent(),
-                StringUtils.hasText(request.getNoticeType()) ? request.getNoticeType() : "SYSTEM",
-                senderUserId);
-        Long noticeId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
         List<Long> receiverUserIds = resolveReceivers(jdbcTemplate, request.getReceiverUserIds());
         if (receiverUserIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "receiver users are required");
         }
+        jdbcTemplate.update(
+                "INSERT INTO sys_notice (title, content, notice_type, sender_user_id, status) VALUES (?, ?, ?, ?, 'ACTIVE')",
+                title,
+                content,
+                noticeType,
+                senderUserId);
+        Long noticeId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
         for (Long receiverUserId : receiverUserIds) {
             jdbcTemplate.update(
                     "INSERT INTO sys_notice_receiver (notice_id, user_id) VALUES (?, ?) " +
@@ -189,11 +221,20 @@ public class NoticeService {
 
     private List<Long> resolveReceivers(JdbcTemplate jdbcTemplate, List<Long> receiverUserIds) {
         if (receiverUserIds != null && !receiverUserIds.isEmpty()) {
+            for (Long receiverUserId : receiverUserIds) {
+                validateReceiverUserId(receiverUserId);
+            }
             return receiverUserIds;
         }
         return jdbcTemplate.query(
                 "SELECT id FROM sys_user WHERE status = 'ACTIVE'",
                 (rs, rowNum) -> rs.getLong("id"));
+    }
+
+    private void validateReceiverUserId(Long receiverUserId) {
+        if (receiverUserId == null || receiverUserId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "receiver user id is required");
+        }
     }
 
     private NoticeResponse getNotice(JdbcTemplate jdbcTemplate, Long id) {
@@ -252,6 +293,16 @@ public class NoticeService {
 
     private int safeLimit(Integer limit) {
         return limit == null ? 200 : Math.max(1, Math.min(limit, 500));
+    }
+
+    private String normalizeText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : value;
+    }
+
+    private void requireTenantCode() {
+        if (!StringUtils.hasText(TenantContext.getTenantCode())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tenant is required");
+        }
     }
 
     private NoticeResponse mapNotice(ResultSet rs) throws SQLException {

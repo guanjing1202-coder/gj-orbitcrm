@@ -46,14 +46,16 @@ public class FileService {
     }
 
     public List<FileResponse> listFiles(String bizType, Long bizId) {
+        requireTenantCode();
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
-        if (StringUtils.hasText(bizType) && bizId != null) {
+        String normalizedBizType = normalizeText(bizType);
+        if (StringUtils.hasText(normalizedBizType) && bizId != null) {
             return jdbcTemplate.query(
                     "SELECT id, biz_type, biz_id, bucket_name, object_key, original_name, content_type, " +
                             "size_bytes, uploader_user_id, status, create_time FROM sys_file " +
                             "WHERE status = 'ACTIVE' AND biz_type = ? AND biz_id = ? ORDER BY id DESC",
                     (rs, rowNum) -> mapFile(rs),
-                    bizType,
+                    normalizedBizType,
                     bizId
                 );
         }
@@ -65,6 +67,7 @@ public class FileService {
     }
 
     public List<FileResponse> listDeletedFiles() {
+        requireTenantCode();
         return tenantJdbcTemplateProvider.currentTenantJdbcTemplate().query(
                 "SELECT id, biz_type, biz_id, bucket_name, object_key, original_name, content_type, " +
                         "size_bytes, uploader_user_id, status, create_time FROM sys_file " +
@@ -73,6 +76,7 @@ public class FileService {
     }
 
     public FileUsageResponse usage() {
+        requireTenantCode();
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         Long usedBytes = activeUsedBytes(jdbcTemplate);
         Integer activeFileCount = jdbcTemplate.queryForObject(
@@ -96,14 +100,15 @@ public class FileService {
         if (file.getSize() > maxUploadBytes) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file is too large");
         }
+        String tenantCode = requireTenantCode();
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         assertStorageQuotaAvailable(jdbcTemplate, file.getSize());
 
-        String tenantCode = requireTenantCode();
+        String normalizedBizType = normalizeText(bizType);
         String bucketName = bucketName(tenantCode);
         String objectKey = objectKey(tenantCode, file.getOriginalFilename());
         String contentType = StringUtils.hasText(file.getContentType())
-                ? file.getContentType()
+                ? file.getContentType().trim()
                 : "application/octet-stream";
 
         try {
@@ -116,7 +121,7 @@ public class FileService {
         jdbcTemplate.update(
                 "INSERT INTO sys_file (biz_type, biz_id, bucket_name, object_key, original_name, content_type, size_bytes, uploader_user_id, status) " +
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')",
-                bizType,
+                normalizedBizType,
                 bizId,
                 bucketName,
                 objectKey,
@@ -129,10 +134,12 @@ public class FileService {
     }
 
     public FileResponse getFile(Long id) {
+        validateFileId(id);
         return getFile(tenantJdbcTemplateProvider.currentTenantJdbcTemplate(), id);
     }
 
     public FileDownloadResource downloadFile(Long id) {
+        validateFileId(id);
         FileResponse file = getFile(id);
         return new FileDownloadResource(
                 minioStorageService.getObject(file.getBucketName(), file.getObjectKey()),
@@ -143,6 +150,7 @@ public class FileService {
 
     @OperationLog(action = "FILE_DELETE", targetType = "sys_file", targetIdArg = 0)
     public FileResponse deleteFile(Long id) {
+        validateFileId(id);
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         int updated = jdbcTemplate.update(
                 "UPDATE sys_file SET status = 'DELETED' WHERE id = ? AND status = 'ACTIVE'",
@@ -155,6 +163,7 @@ public class FileService {
 
     @OperationLog(action = "FILE_RESTORE", targetType = "sys_file", targetIdArg = 0)
     public FileResponse restoreFile(Long id) {
+        validateFileId(id);
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         FileResponse file = getFileIncludingDeleted(jdbcTemplate, id);
         if (!"DELETED".equals(file.getStatus())) {
@@ -169,6 +178,7 @@ public class FileService {
 
     @OperationLog(action = "FILE_PURGE", targetType = "sys_file", targetIdArg = 0)
     public FileResponse purgeFile(Long id) {
+        validateFileId(id);
         JdbcTemplate jdbcTemplate = tenantJdbcTemplateProvider.currentTenantJdbcTemplate();
         FileResponse file = getFileIncludingDeleted(jdbcTemplate, id);
         if (!"DELETED".equals(file.getStatus())) {
@@ -211,6 +221,12 @@ public class FileService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "file not found");
         }
         return files.get(0);
+    }
+
+    private void validateFileId(Long id) {
+        if (id == null || id <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file id is required");
+        }
     }
 
     private void assertStorageQuotaAvailable(JdbcTemplate jdbcTemplate, long incomingBytes) {
@@ -287,7 +303,13 @@ public class FileService {
         if (!StringUtils.hasText(originalFilename)) {
             return "unnamed";
         }
-        return originalFilename.replace("\\", "/").substring(originalFilename.replace("\\", "/").lastIndexOf('/') + 1);
+        String normalizedName = originalFilename.replace("\\", "/").trim();
+        String safeName = normalizedName.substring(normalizedName.lastIndexOf('/') + 1).trim();
+        return StringUtils.hasText(safeName) ? safeName : "unnamed";
+    }
+
+    private String normalizeText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private String sanitizeBucketPart(String value) {
@@ -299,7 +321,7 @@ public class FileService {
         if (!StringUtils.hasText(tenantCode)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "tenant is required");
         }
-        return tenantCode;
+        return tenantCode.trim();
     }
 
     private Long currentUserId() {

@@ -664,10 +664,11 @@ ORBIT_ADMIN_API_KEY
 
 ## 项目校验
 
-当前仓库提供结构校验脚本：
+当前仓库提供结构校验脚本和 Maven 测试基线：
 
 ```powershell
 .\scripts\validate-structure.ps1
+mvn test
 ```
 
 校验内容包括：
@@ -675,6 +676,15 @@ ORBIT_ADMIN_API_KEY
 - 核心文件是否存在
 - Maven POM XML 是否可解析
 - 是否出现明显不兼容 Java 8 的 API 或语法
+- 多模块单元测试与服务级边界回归测试是否通过
+
+近期质量基线：
+
+- 全仓 21 个 Maven 模块可通过 `mvn test`
+- 租户数据源统一使用 Hikari-backed `JdbcTemplate` 工厂，并支持缓存刷新和关闭
+- OpenAPI、CRM、billing、file、message 等关键服务补充了服务级回归测试
+- 文件与消息模块会在缺少租户、空 ID、非法接收人、坏事件等场景提前返回 `400 BAD_REQUEST`
+- 文件上传、通知创建、通知事件发布和列表筛选会在入库或投递前归一化文本字段
 
 ## 展示说明
 
